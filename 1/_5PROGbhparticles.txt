@@ -1,0 +1,1012 @@
+
+#!/usr/bin/env python3
+"""
+QUANTUM FOAM SENSING - EXTENDED VALIDATION
+==========================================
+Experiment A: Gaussian Width Scan (Philox-Gauss Variants)
+Experiment B: Black Hole Information Valley Mapping
+Experiment C: Specialized PRNG Validation (NEW - Phase 12)
+Experiment D: Dark Matter Detection (NEW - Phase 13)
+"""
+
+import numpy as np
+import scipy
+from scipy.stats import entropy as scipy_entropy, pearsonr
+import random
+import secrets
+import os
+from numpy.random import Generator, PCG64, MT19937, Philox, SFC64
+import hashlib
+import time
+import json
+import pandas as pd
+from collections import defaultdict
+
+from qiskit import QuantumCircuit, transpile
+
+try:
+    from azure.quantum import Workspace
+    from azure.quantum.qiskit import AzureQuantumProvider
+    AZURE_AVAILABLE = True
+except ImportError:
+    print("⚠️  pip install azure-quantum qiskit qiskit-aer")
+    AZURE_AVAILABLE = False
+
+# ================================================================================
+# CONFIGURATION
+# ================================================================================
+
+CONNECTION_STRING = "xxxxxx"
+
+NUM_QUBITS = 4
+NUM_SHOTS = 500
+CRITICAL_NOISE = 0.21
+
+# Experiment A: Gaussian width variants
+GAUSSIAN_WIDTHS = [0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0]
+
+# Experiment A: Test particles (light, medium, heavy)
+EXP_A_PARTICLES = {
+    'electron_neutrino': {'mass': 0.001, 'charge': 0, 'spin': 0.5, 'type': 'lepton', 'gen': 1},
+    'muon': {'mass': 105.66e6, 'charge': -1, 'spin': 0.5, 'type': 'lepton', 'gen': 2},
+    'higgs': {'mass': 125.1e9, 'charge': 0, 'spin': 0, 'type': 'scalar', 'gen': 0},
+}
+
+# Experiment B: Black holes spanning the mass range
+EXP_B_BLACK_HOLES = {
+    'planck_mass_bh': {
+        'mass_solar': 1.22e-8, 'schwarzschild_radius_km': 1.616e-35,
+        'temperature_k': 1.417e32, 'entropy_bits': 1, 'type': 'planck', 'spin': 0.0
+    },
+    'primordial_1e3': {
+        'mass_solar': 1e-9, 'schwarzschild_radius_km': 2.95e-9,
+        'temperature_k': 1.23e14, 'entropy_bits': 3.93e48, 'type': 'primordial', 'spin': 0.0
+    },
+    'stellar_mass': {
+        'mass_solar': 15, 'schwarzschild_radius_km': 44,
+        'temperature_k': 4.1e-3, 'entropy_bits': 8.8e67, 'type': 'stellar', 'spin': 0.9
+    },
+    'intermediate_1e3': {
+        'mass_solar': 1e3, 'schwarzschild_radius_km': 2.95e3,
+        'temperature_k': 6.1e-5, 'entropy_bits': 3.93e76, 'type': 'intermediate', 'spin': 0.5
+    },
+    'intermediate_1e5': {
+        'mass_solar': 1e5, 'schwarzschild_radius_km': 2.95e5,
+        'temperature_k': 6.1e-7, 'entropy_bits': 3.93e82, 'type': 'intermediate', 'spin': 0.7
+    },
+    'sagittarius_a_star': {
+        'mass_solar': 4.15e6, 'schwarzschild_radius_km': 12.2e6,
+        'temperature_k': 6.17e-8, 'entropy_bits': 1.08e91, 'type': 'supermassive', 'spin': 0.9
+    },
+    'ton_618': {
+        'mass_solar': 6.6e10, 'schwarzschild_radius_km': 1.95e11,
+        'temperature_k': 3.89e-12, 'entropy_bits': 1.72e96, 'type': 'supermassive', 'spin': 0.95
+    }
+}
+
+# Experiment C: Test particles for specialized PRNGs
+EXP_C_PARTICLES = {
+    'up_quark': {'mass': 2.2e6, 'charge': 2/3, 'spin': 0.5, 'type': 'quark', 'gen': 1},
+    'charm_quark': {'mass': 1.27e9, 'charge': 2/3, 'spin': 0.5, 'type': 'quark', 'gen': 2},
+    'electron': {'mass': 0.511e6, 'charge': -1, 'spin': 0.5, 'type': 'lepton', 'gen': 1},
+    'muon': {'mass': 105.66e6, 'charge': -1, 'spin': 0.5, 'type': 'lepton', 'gen': 2},
+    'electron_neutrino': {'mass': 0.001, 'charge': 0, 'spin': 0.5, 'type': 'lepton', 'gen': 1},
+    'muon_neutrino': {'mass': 0.17, 'charge': 0, 'spin': 0.5, 'type': 'lepton', 'gen': 2}
+}
+
+# Experiment D: Dark matter candidates
+DARK_MATTER_CANDIDATES = {
+    'WIMP': {
+        'mass': 100e9, 'charge': 0, 'spin': 0.5,
+        'interactions': ['weak', 'gravitational'],
+        'type': 'dark_matter'
+    },
+    'sterile_neutrino': {
+        'mass': 1e3, 'charge': 0, 'spin': 0.5,
+        'interactions': ['gravitational'],
+        'type': 'dark_matter'
+    },
+    'axion': {
+        'mass': 1e-5, 'charge': 0, 'spin': 0,
+        'interactions': ['weak', 'two_photon'],
+        'type': 'dark_matter'
+    },
+    'neutralino': {
+        'mass': 150e9, 'charge': 0, 'spin': 0.5,
+        'interactions': ['weak', 'susy'],
+        'type': 'dark_matter'
+    }
+}
+
+print("="*80)
+print("🔬 EXTENDED QUANTUM FOAM VALIDATION")
+print("="*80)
+print(f"Experiment A: Gaussian Width Scan ({len(GAUSSIAN_WIDTHS)*len(EXP_A_PARTICLES)} circuits)")
+print(f"Experiment B: BH Information Valley ({len(EXP_B_BLACK_HOLES)} circuits)")
+print(f"Experiment C: Specialized PRNGs ({len(EXP_C_PARTICLES)} circuits)")
+print(f"Experiment D: Dark Matter Detection ({len(DARK_MATTER_CANDIDATES)} circuits)")
+print(f"\nTOTAL: {len(GAUSSIAN_WIDTHS)*len(EXP_A_PARTICLES) + len(EXP_B_BLACK_HOLES) + len(EXP_C_PARTICLES) + len(DARK_MATTER_CANDIDATES)} circuits")
+print("="*80 + "\n")
+
+# ================================================================================
+# PRNG SENSORS
+# ================================================================================
+
+class GaussianWidthSensor:
+    """PRNG sensor with tunable Gaussian width"""
+    def __init__(self, seed=None):
+        self.seed = seed or int(time.time() * 1e9) % (2**32)
+        self.philox = Generator(Philox(self.seed))
+    
+    def get_philox_gauss_samples(self, width, n=500):
+        """Generate Gaussian samples with specified width"""
+        return [self.philox.normal(0, width) for _ in range(n)]
+
+
+class StrongRNG:
+    """Quark-specialized PRNG with SU(3) color structure"""
+    def __init__(self, seed=None):
+        self.seed = seed or int(time.time() * 1e9) % (2**32)
+        self.rng = np.random.default_rng(self.seed)
+        self.state = self.rng.standard_normal((3, 3))
+        self.width = 0.5
+    
+    def _color_rotation(self):
+        """Cyclic color permutation"""
+        self.state = np.roll(self.state, 1, axis=0)
+    
+    def _ckm_mixing(self):
+        """CKM-like flavor mixing"""
+        theta = np.pi / 6
+        ckm = np.array([
+            [np.cos(theta), np.sin(theta), 0],
+            [-np.sin(theta), np.cos(theta), 0],
+            [0, 0, 1]
+        ])
+        self.state = ckm @ self.state
+    
+    def _gluon_emission(self):
+        """XOR adjacent colors"""
+        for i in range(3):
+            next_i = (i + 1) % 3
+            # Element-wise XOR using sign changes
+            self.state[i] = np.where(np.sign(self.state[i]) == np.sign(self.state[next_i]),
+                                    self.state[i], -self.state[i])
+    
+    def _ensure_singlet(self):
+        """Enforce color singlet"""
+        trace = np.trace(self.state)
+        self.state -= np.eye(3) * (trace / 3)
+    
+    def generate_sample(self, n=500):
+        """Generate quark-optimized samples"""
+        samples = []
+        for _ in range(n):
+            self._color_rotation()
+            self._ckm_mixing()
+            self._gluon_emission()
+            self._ensure_singlet()
+            
+            diagonal = np.diag(self.state)
+            sample = diagonal[0] * self.width + self.rng.normal(0, 0.1)
+            samples.append(sample)
+        
+        return samples
+
+
+class ElectroweakRNG:
+    """Lepton-specialized PRNG with SU(2)×U(1) structure"""
+    def __init__(self, seed=None):
+        self.seed = seed or int(time.time() * 1e9) % (2**32)
+        self.rng = np.random.default_rng(self.seed)
+        self.doublet = self.rng.standard_normal((2, 2))
+        self.hypercharge = self.rng.uniform(0, 2*np.pi)
+        self.width = 2.0
+    
+    def _weak_rotation(self):
+        """SU(2) rotation"""
+        theta = self.rng.uniform(0, 2*np.pi)
+        rotation = np.array([
+            [np.cos(theta/2), -np.sin(theta/2)],
+            [np.sin(theta/2), np.cos(theta/2)]
+        ])
+        self.doublet = rotation @ self.doublet
+    
+    def _hypercharge_shift(self):
+        """U(1) hypercharge evolution"""
+        theta_w = 0.48
+        self.hypercharge = (self.hypercharge + theta_w) % (2*np.pi)
+    
+    def _em_mixing(self):
+        """EM coupling"""
+        em_phase = np.exp(1j * self.hypercharge)
+        self.doublet *= np.real(em_phase)
+    
+    def _pmns_oscillation(self):
+        """Neutrino oscillation"""
+        theta_12 = 0.59
+        pmns = np.array([
+            [np.cos(theta_12), np.sin(theta_12)],
+            [-np.sin(theta_12), np.cos(theta_12)]
+        ])
+        self.doublet = pmns @ self.doublet
+    
+    def generate_sample(self, n=500):
+        """Generate lepton-optimized samples"""
+        samples = []
+        for _ in range(n):
+            self._weak_rotation()
+            self._hypercharge_shift()
+            self._em_mixing()
+            self._pmns_oscillation()
+            
+            charged = self.doublet[1, 1]
+            sample = charged * self.width + self.rng.normal(0, 0.2)
+            samples.append(sample)
+        
+        return samples
+
+
+class WeakRNG:
+    """Neutrino-specialized PRNG with PMNS mixing"""
+    def __init__(self, seed=None):
+        self.seed = seed or int(time.time() * 1e9) % (2**32)
+        self.rng = np.random.default_rng(self.seed)
+        self.flavors = self.rng.standard_normal(3)
+        self.width = 1.5
+    
+    def _pmns_mixing(self):
+        """Full 3×3 PMNS matrix"""
+        theta_12 = 0.59
+        theta_23 = 0.74
+        theta_13 = 0.15
+        delta_cp = 1.36
+        
+        c12, s12 = np.cos(theta_12), np.sin(theta_12)
+        c23, s23 = np.cos(theta_23), np.sin(theta_23)
+        c13, s13 = np.cos(theta_13), np.sin(theta_13)
+        
+        pmns = np.array([
+            [c12*c13, s12*c13, s13*np.exp(-1j*delta_cp)],
+            [-s12*c23 - c12*s23*s13*np.exp(1j*delta_cp), 
+             c12*c23 - s12*s23*s13*np.exp(1j*delta_cp), 
+             s23*c13],
+            [s12*s23 - c12*c23*s13*np.exp(1j*delta_cp),
+             -c12*s23 - s12*c23*s13*np.exp(1j*delta_cp),
+             c23*c13]
+        ])
+        
+        mixed = np.real(pmns @ self.flavors)
+        self.flavors = mixed
+    
+    def _mass_splitting(self):
+        """Mass eigenstate evolution"""
+        dm21_sq = 7.5e-5
+        dm32_sq = 2.5e-3
+        
+        self.flavors[0] *= np.cos(dm21_sq)
+        self.flavors[1] *= np.cos(dm21_sq + 0.1)
+        self.flavors[2] *= np.cos(dm32_sq)
+    
+    def generate_sample(self, n=500):
+        """Generate neutrino-optimized samples"""
+        samples = []
+        for _ in range(n):
+            self._pmns_mixing()
+            self._mass_splitting()
+            
+            prob = np.sum(self.flavors**2) / 3
+            sample = prob * self.width + self.rng.normal(0, 0.15)
+            samples.append(sample)
+        
+        return samples
+
+
+sensor = GaussianWidthSensor()
+print("✓ All PRNG sensors initialized\n")
+
+# ================================================================================
+# QUANTUM CIRCUITS
+# ================================================================================
+
+def create_particle_circuit(particle_name, particle_data, n_qubits=4, noise=0.0):
+    """Create quantum circuit for particle"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 173e9
+    mass_angle = (particle_data['mass'] / max_mass) * np.pi
+    charge_angle = (particle_data['charge'] + 1) * np.pi / 2
+    spin_angle = particle_data['spin'] * np.pi
+    gen = particle_data.get('gen', 0)
+    ptype = particle_data['type']
+    
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    qc.ry(mass_angle, 0)
+    qc.ry(charge_angle, 1)
+    qc.ry(spin_angle, 2)
+    if gen > 0:
+        qc.ry(gen * np.pi / 3, 3)
+    
+    for i in range(n_qubits - 1):
+        qc.cx(i, i + 1)
+    
+    if ptype in ['lepton', 'quark']:
+        qc.rz(mass_angle * 0.5, 0)
+        qc.rz(charge_angle * 0.5, 1)
+        qc.cx(0, 2)
+    elif ptype == 'scalar':
+        qc.rz(mass_angle * 0.3, 0)
+        qc.cx(0, 3)
+    
+    qc.cx(n_qubits - 1, 0)
+    
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    for i in range(0, n_qubits, 2):
+        if i + 1 < n_qubits:
+            qc.ry(np.pi / 8, i)
+            qc.ry(np.pi / 8, i + 1)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+
+def create_black_hole_circuit(bh_name, bh_data, n_qubits=4, noise=0.0):
+    """Create quantum circuit for black hole"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 1e12
+    max_entropy = 1e97
+    max_temp = 1e32
+    
+    mass_angle = np.log10(bh_data['mass_solar'] + 1) / np.log10(max_mass) * np.pi
+    entropy_angle = np.log10(bh_data['entropy_bits'] + 1) / np.log10(max_entropy) * np.pi
+    temp_angle = np.log10(bh_data['temperature_k'] + 1e-40) / np.log10(max_temp) * np.pi
+    spin_angle = bh_data['spin'] * np.pi
+    
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    qc.ry(mass_angle, 0)
+    qc.ry(entropy_angle, 1)
+    qc.ry(temp_angle, 2)
+    qc.ry(spin_angle, 3)
+    
+    bh_type = bh_data['type']
+    
+    if bh_type == 'planck':
+        for i in range(n_qubits - 1):
+            qc.cx(i, i + 1)
+            qc.cz(i, i + 1)
+        qc.cx(n_qubits - 1, 0)
+    elif bh_type == 'primordial':
+        qc.cx(0, 2)
+        qc.cx(1, 3)
+        qc.cz(0, 3)
+    elif bh_type == 'stellar':
+        qc.cx(0, 1)
+        qc.cx(2, 3)
+        qc.cx(1, 2)
+    elif bh_type == 'intermediate':
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.cx(2, 3)
+    elif bh_type == 'supermassive':
+        for i in range(n_qubits - 1):
+            qc.cx(i, i + 1)
+        qc.cx(n_qubits - 1, 0)
+        qc.cz(0, 2)
+    
+    qc.rz(entropy_angle * 0.5, 1)
+    qc.rz(spin_angle * 0.5, 3)
+    
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    for i in range(0, n_qubits, 2):
+        if i + 1 < n_qubits:
+            qc.ry(np.pi / 8, i)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+
+def create_dark_matter_circuit(candidate_name, candidate_data, n_qubits=4, noise=0.0):
+    """Create circuit for dark matter candidate"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 200e9
+    mass_angle = (candidate_data['mass'] / max_mass) * np.pi
+    spin_angle = candidate_data['spin'] * np.pi
+    
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    qc.ry(mass_angle, 0)
+    qc.ry(spin_angle, 1)
+    
+    interactions = candidate_data['interactions']
+    
+    if 'weak' in interactions:
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.rz(np.pi/4, 2)
+    
+    if 'gravitational' in interactions and len(interactions) == 1:
+        qc.cx(0, 3)
+        qc.rz(mass_angle * 0.1, 3)
+    
+    if 'two_photon' in interactions:
+        qc.cx(1, 2)
+        qc.cx(2, 3)
+        qc.ry(np.pi/8, 2)
+    
+    if 'susy' in interactions:
+        qc.cx(0, 2)
+        qc.cx(1, 3)
+        qc.cz(0, 3)
+    
+    for i in range(n_qubits):
+        qc.rz(mass_angle * 0.05, i)
+    
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+
+print("✓ All quantum circuits ready\n")
+
+# ================================================================================
+# ANALYSIS
+# ================================================================================
+
+def calculate_entropy_discrete(data, n_bins):
+    """Discrete entropy for fair comparison"""
+    data_norm = np.array(data)
+    data_norm = (data_norm - data_norm.min()) / (data_norm.max() - data_norm.min() + 1e-10)
+    bins = np.linspace(0, 1, n_bins + 1)
+    digitized = np.digitize(data_norm, bins) - 1
+    digitized = np.clip(digitized, 0, n_bins - 1)
+    counts = np.bincount(digitized, minlength=n_bins)
+    probs = counts / len(data)
+    probs = probs[probs > 0]
+    return -np.sum(probs * np.log2(probs))
+
+
+def quantum_entropy(counts, n_qubits):
+    """Quantum entropy from measurements"""
+    total = sum(counts.values())
+    probs = np.array([counts.get(format(i, f'0{n_qubits}b'), 0) / total 
+                      for i in range(2**n_qubits)])
+    probs = probs[probs > 0]
+    return -np.sum(probs * np.log2(probs))
+
+
+def coupling_coefficient(classical_entropy, quantum_entropy):
+    """Coupling strength"""
+    return quantum_entropy / (classical_entropy + 1e-10)
+
+
+def compton_wavelength(mass_eV):
+    """Calculate Compton wavelength in meters"""
+    h_bar = 1.054571817e-34
+    c = 299792458
+    eV_to_J = 1.602176634e-19
+    mass_kg = mass_eV * eV_to_J / (c**2)
+    if mass_kg == 0:
+        return np.inf
+    return h_bar / (mass_kg * c)
+
+
+print("✓ Analysis functions ready\n")
+
+# ================================================================================
+# BACKEND
+# ================================================================================
+
+def setup_backend():
+    if not AZURE_AVAILABLE:
+        print("❌ Azure Quantum SDK not installed")
+        return None, None
+    
+    try:
+        workspace = Workspace.from_connection_string(CONNECTION_STRING)
+        print(f"✓ Connected to workspace: {workspace.name}")
+        
+        provider = AzureQuantumProvider(workspace)
+        backends = provider.backends()
+        print("\nAvailable backends:")
+        for b in backends:
+            print(f"  - {b.name()}")
+        
+        target = 'rigetti.sim.qvm'
+        backend = provider.get_backend(target)
+        if backend is None:
+            print(f"❌ {target} not available")
+            return None, None
+        
+        print(f"\n✓ Using: {backend.name()}")
+        return backend, backend.name()
+                
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        return None, None
+
+
+backend, backend_name = setup_backend()
+if backend is None:
+    print("Cannot proceed without backend")
+    exit(1)
+
+# ================================================================================
+# EXPERIMENT A: GAUSSIAN WIDTH SCAN
+# ================================================================================
+
+def experiment_a_gaussian_width():
+    print("\n" + "="*80)
+    print("EXPERIMENT A: GAUSSIAN WIDTH SCAN")
+    print("="*80)
+    print("HYPOTHESIS: Optimal σ correlates with particle Compton wavelength")
+    print("-"*80 + "\n")
+    
+    n_bins = 2**NUM_QUBITS
+    results = {}
+    
+    for particle_name, particle_data in EXP_A_PARTICLES.items():
+        print(f"\n⚛️  PARTICLE: {particle_name}")
+        print(f"   Mass: {particle_data['mass']:.2e} eV")
+        
+        lambda_c = compton_wavelength(particle_data['mass'])
+        print(f"   Compton λ: {lambda_c:.2e} m")
+        
+        qc = create_particle_circuit(particle_name, particle_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting quantum circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        print(f"   Quantum entropy: {q_entropy:.4f} bits\n")
+        
+        width_couplings = {}
+        
+        print("   Testing Gaussian widths:")
+        for width in GAUSSIAN_WIDTHS:
+            classical_samples = sensor.get_philox_gauss_samples(width, NUM_SHOTS)
+            c_entropy = calculate_entropy_discrete(classical_samples, n_bins)
+            coupling = coupling_coefficient(c_entropy, q_entropy)
+            width_couplings[width] = {
+                'classical_entropy': c_entropy,
+                'coupling': coupling
+            }
+            
+            print(f"     σ={width:.1f}: H_c={c_entropy:.4f}, coupling={coupling:.4f}")
+        
+        optimal_width = max(width_couplings.keys(), key=lambda w: width_couplings[w]['coupling'])
+        optimal_coupling = width_couplings[optimal_width]['coupling']
+        
+        print(f"\n   🎯 OPTIMAL: σ={optimal_width:.1f}, coupling={optimal_coupling:.4f}")
+        
+        results[particle_name] = {
+            'mass': particle_data['mass'],
+            'compton_wavelength': lambda_c,
+            'quantum_entropy': q_entropy,
+            'width_couplings': width_couplings,
+            'optimal_width': optimal_width,
+            'optimal_coupling': optimal_coupling
+        }
+    
+    print("\n" + "-"*80)
+    print("📊 GAUSSIAN WIDTH ANALYSIS")
+    print("-"*80)
+    
+    masses = [results[p]['mass'] for p in EXP_A_PARTICLES.keys()]
+    optimal_widths = [results[p]['optimal_width'] for p in EXP_A_PARTICLES.keys()]
+    
+    log_masses = np.log10(np.array(masses) + 1)
+    correlation, p_value = pearsonr(log_masses, optimal_widths)
+    
+    print(f"\nCorrelation(log(mass), optimal_σ): r={correlation:.3f}, p={p_value:.4f}")
+    
+    if abs(correlation) > 0.7 and p_value < 0.1:
+        print("✓ STRONG CORRELATION: Compton wavelength hypothesis CONFIRMED")
+    elif abs(correlation) > 0.4:
+        print("~ MODERATE CORRELATION: Partial support")
+    else:
+        print("✗ WEAK CORRELATION: Hypothesis NOT supported")
+    
+    print("\nParticle-by-Particle:")
+    for particle in EXP_A_PARTICLES.keys():
+        data = results[particle]
+        print(f"  {particle:20s}: mass={data['mass']:.2e} eV, optimal_σ={data['optimal_width']:.1f}")
+    
+    return results
+
+# ================================================================================
+# EXPERIMENT B: BLACK HOLE INFORMATION VALLEY
+# ================================================================================
+
+def experiment_b_bh_valley():
+    print("\n" + "="*80)
+    print("EXPERIMENT B: BLACK HOLE INFORMATION VALLEY")
+    print("="*80)
+    print("HYPOTHESIS: Information extraction has non-monotonic 'valley' structure")
+    print("PREDICTION: Minimum extraction at intermediate masses (~10^5 M_sun)")
+    print("-"*80 + "\n")
+    
+    n_bins = 2**NUM_QUBITS
+    results = {}
+    
+    for bh_name, bh_data in EXP_B_BLACK_HOLES.items():
+        print(f"\n🕳️  BLACK HOLE: {bh_name}")
+        print(f"   Type: {bh_data['type']}")
+        print(f"   Mass: {bh_data['mass_solar']:.2e} M_sun")
+        print(f"   Temperature: {bh_data['temperature_k']:.2e} K")
+        print(f"   Entropy: {bh_data['entropy_bits']:.2e} bits")
+        
+        qc = create_black_hole_circuit(bh_name, bh_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting quantum circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        
+        # Information density (entropy per qubit)
+        info_density = q_entropy / NUM_QUBITS
+        
+        # Extraction ratio (vs theoretical maximum)
+        max_entropy = NUM_QUBITS  # log2(2^NUM_QUBITS)
+        extraction_ratio = q_entropy / max_entropy
+        
+        print(f"   Quantum entropy: {q_entropy:.4f} bits")
+        print(f"   Info density: {info_density:.4f} bits/qubit")
+        print(f"   Extraction: {extraction_ratio:.1%}")
+        
+        results[bh_name] = {
+            'type': bh_data['type'],
+            'mass_solar': bh_data['mass_solar'],
+            'temperature_k': bh_data['temperature_k'],
+            'entropy_bits': bh_data['entropy_bits'],
+            'quantum_entropy': q_entropy,
+            'info_density': info_density,
+            'extraction_ratio': extraction_ratio
+        }
+    
+    print("\n" + "-"*80)
+    print("📊 BLACK HOLE INFORMATION VALLEY ANALYSIS")
+    print("-"*80)
+    
+    # Sort by mass
+    sorted_bhs = sorted(results.items(), key=lambda x: x[1]['mass_solar'])
+    
+    print("\nMass (M_sun)        Type            Extraction")
+    print("-"*60)
+    for bh_name, data in sorted_bhs:
+        print(f"{data['mass_solar']:15.2e}  {data['type']:15s}  {data['extraction_ratio']:.1%}")
+    
+    # Find valley (minimum extraction)
+    min_extraction_bh = min(results.items(), key=lambda x: x[1]['extraction_ratio'])
+    max_extraction_bh = max(results.items(), key=lambda x: x[1]['extraction_ratio'])
+    
+    print(f"\n🎯 VALLEY FLOOR: {min_extraction_bh[0]}")
+    print(f"   Mass: {min_extraction_bh[1]['mass_solar']:.2e} M_sun")
+    print(f"   Extraction: {min_extraction_bh[1]['extraction_ratio']:.1%}")
+    
+    print(f"\n🔝 PEAK EXTRACTION: {max_extraction_bh[0]}")
+    print(f"   Mass: {max_extraction_bh[1]['mass_solar']:.2e} M_sun")
+    print(f"   Extraction: {max_extraction_bh[1]['extraction_ratio']:.1%}")
+    
+    # Test for valley structure
+    masses = [data['mass_solar'] for _, data in sorted_bhs]
+    extractions = [data['extraction_ratio'] for _, data in sorted_bhs]
+    
+    # Check if there's a minimum in the middle (valley)
+    min_idx = extractions.index(min(extractions))
+    valley_exists = 0 < min_idx < len(extractions) - 1
+    
+    if valley_exists:
+        print(f"\n✓✓ VALLEY STRUCTURE CONFIRMED")
+        print(f"   Minimum extraction at intermediate mass scale")
+    else:
+        print(f"\n✗ NO CLEAR VALLEY")
+        print(f"   Extraction is monotonic")
+    
+    return results
+
+
+# ================================================================================
+# EXPERIMENT C: SPECIALIZED PRNG VALIDATION
+# ================================================================================
+
+def experiment_c_specialized_prngs():
+    print("\n" + "="*80)
+    print("EXPERIMENT C: SPECIALIZED PRNG VALIDATION")
+    print("="*80)
+    print("HYPOTHESIS: Architecture-matched PRNGs achieve >0.95 coupling")
+    print("PREDICTION: StrongRNG→quarks, ElectroweakRNG→leptons, WeakRNG→neutrinos")
+    print("-"*80 + "\n")
+    
+    # Initialize specialized PRNGs
+    strong_rng = StrongRNG()
+    ew_rng = ElectroweakRNG()
+    weak_rng = WeakRNG()
+    
+    n_bins = 2**NUM_QUBITS
+    results = {}
+    
+    for particle_name, particle_data in EXP_C_PARTICLES.items():
+        print(f"\n⚛️  TESTING: {particle_name}")
+        print(f"   Type: {particle_data['type']}, Mass: {particle_data['mass']:.2e} eV")
+        
+        # Get quantum signature
+        qc = create_particle_circuit(particle_name, particle_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting quantum circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        
+        # Test with all PRNGs
+        prng_results = {}
+        
+        # Generic baseline
+        generic_samples = sensor.get_philox_gauss_samples(1.0, NUM_SHOTS)
+        generic_entropy = calculate_entropy_discrete(generic_samples, n_bins)
+        generic_coupling = coupling_coefficient(generic_entropy, q_entropy)
+        prng_results['Generic'] = generic_coupling
+        
+        # Specialized PRNGs
+        strong_samples = strong_rng.generate_sample(NUM_SHOTS)
+        strong_entropy = calculate_entropy_discrete(strong_samples, n_bins)
+        strong_coupling = coupling_coefficient(strong_entropy, q_entropy)
+        prng_results['StrongRNG'] = strong_coupling
+        
+        ew_samples = ew_rng.generate_sample(NUM_SHOTS)
+        ew_entropy = calculate_entropy_discrete(ew_samples, n_bins)
+        ew_coupling = coupling_coefficient(ew_entropy, q_entropy)
+        prng_results['ElectroweakRNG'] = ew_coupling
+        
+        weak_samples = weak_rng.generate_sample(NUM_SHOTS)
+        weak_entropy = calculate_entropy_discrete(weak_samples, n_bins)
+        weak_coupling = coupling_coefficient(weak_entropy, q_entropy)
+        prng_results['WeakRNG'] = weak_coupling
+        
+        # Find best
+        best_prng = max(prng_results.keys(), key=lambda x: prng_results[x])
+        best_coupling = prng_results[best_prng]
+        
+        print(f"\n   PRNG Couplings:")
+        for prng, coupling in prng_results.items():
+            symbol = "✓✓" if prng == best_prng else "  "
+            improvement = (coupling / generic_coupling - 1) * 100
+            print(f"     {symbol} {prng:20s}: {coupling:.4f} ({improvement:+.1f}%)")
+        
+        # Validate predictions
+        particle_type = particle_data['type']
+        expected_best = None
+        
+        if particle_type == 'quark':
+            expected_best = 'StrongRNG'
+        elif particle_type == 'lepton' and particle_data['charge'] != 0:
+            expected_best = 'ElectroweakRNG'
+        elif particle_type == 'lepton' and particle_data['charge'] == 0:
+            expected_best = 'WeakRNG'
+        
+        if best_prng == expected_best:
+            print(f"\n   ✓ PREDICTION CONFIRMED: {expected_best} optimal for {particle_type}")
+        else:
+            print(f"\n   ✗ UNEXPECTED: {best_prng} optimal (predicted {expected_best})")
+        
+        results[particle_name] = {
+            'type': particle_type,
+            'quantum_entropy': q_entropy,
+            'prng_couplings': prng_results,
+            'best_prng': best_prng,
+            'expected_prng': expected_best,
+            'prediction_correct': (best_prng == expected_best)
+        }
+    
+    # Summary analysis
+    print("\n" + "-"*80)
+    print("📊 SPECIALIZED PRNG SUMMARY")
+    print("-"*80)
+    
+    # Selectivity matrix
+    print("\nSELECTIVITY MATRIX:")
+    print("Particle            | Generic | Strong | EW     | Weak   | Best")
+    print("-"*70)
+    
+    for particle in EXP_C_PARTICLES.keys():
+        data = results[particle]
+        couplings = data['prng_couplings']
+        print(f"{particle:20s}| {couplings['Generic']:.3f}  | {couplings['StrongRNG']:.3f} | " +
+              f"{couplings['ElectroweakRNG']:.3f} | {couplings['WeakRNG']:.3f} | {data['best_prng']}")
+    
+    # Validation statistics
+    correct = sum(1 for r in results.values() if r['prediction_correct'])
+    total = len(results)
+    accuracy = correct / total
+    
+    print(f"\nPREDICTION ACCURACY: {correct}/{total} = {accuracy:.1%}")
+    
+    if accuracy >= 0.8:
+        print("✓✓ HYPOTHESIS STRONGLY CONFIRMED")
+    elif accuracy >= 0.6:
+        print("✓ HYPOTHESIS PARTIALLY CONFIRMED")
+    else:
+        print("✗ HYPOTHESIS NOT CONFIRMED")
+    
+    return results
+
+
+# ================================================================================
+# EXPERIMENT D: DARK MATTER DETECTION
+# ================================================================================
+
+def experiment_d_dark_matter():
+    print("\n" + "="*80)
+    print("EXPERIMENT D: DARK MATTER CANDIDATE DETECTION")
+    print("="*80)
+    print("HYPOTHESIS: WeakRNG couples strongly to weak-interacting dark matter")
+    print("PREDICTION: WIMPs/neutralinos cluster with neutrinos")
+    print("-"*80 + "\n")
+    
+    weak_rng = WeakRNG()
+    strong_rng = StrongRNG()
+    ew_rng = ElectroweakRNG()
+    
+    n_bins = 2**NUM_QUBITS
+    results = {}
+    
+    for candidate_name, candidate_data in DARK_MATTER_CANDIDATES.items():
+        print(f"\n🌌 TESTING: {candidate_name}")
+        print(f"   Mass: {candidate_data['mass']:.2e} eV")
+        print(f"   Interactions: {candidate_data['interactions']}")
+        
+        # Create dark matter circuit
+        qc = create_dark_matter_circuit(candidate_name, candidate_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        
+        # Test all PRNGs
+        weak_samples = weak_rng.generate_sample(NUM_SHOTS)
+        weak_entropy = calculate_entropy_discrete(weak_samples, n_bins)
+        weak_coupling = coupling_coefficient(weak_entropy, q_entropy)
+        
+        strong_samples = strong_rng.generate_sample(NUM_SHOTS)
+        strong_entropy = calculate_entropy_discrete(strong_samples, n_bins)
+        strong_coupling = coupling_coefficient(strong_entropy, q_entropy)
+        
+        ew_samples = ew_rng.generate_sample(NUM_SHOTS)
+        ew_entropy = calculate_entropy_discrete(ew_samples, n_bins)
+        ew_coupling = coupling_coefficient(ew_entropy, q_entropy)
+        
+        print(f"\n   PRNG Couplings:")
+        print(f"     WeakRNG:         {weak_coupling:.4f}")
+        print(f"     StrongRNG:       {strong_coupling:.4f}")
+        print(f"     ElectroweakRNG:  {ew_coupling:.4f}")
+        
+        # Interaction inference
+        best_prng = max([('WeakRNG', weak_coupling), ('StrongRNG', strong_coupling), 
+                        ('ElectroweakRNG', ew_coupling)], key=lambda x: x[1])[0]
+        
+        if best_prng == 'WeakRNG' and weak_coupling > 0.85:
+            print(f"\n   ✓ DETECTION: Weak interaction dominant ({weak_coupling:.3f})")
+            print(f"     → Consistent with {candidate_data['interactions']}")
+        elif best_prng == 'StrongRNG':
+            print(f"\n   ⚠ UNEXPECTED: Strong coupling detected")
+        
+        results[candidate_name] = {
+            'interactions': candidate_data['interactions'],
+            'quantum_entropy': q_entropy,
+            'weak_coupling': weak_coupling,
+            'strong_coupling': strong_coupling,
+            'ew_coupling': ew_coupling,
+            'best_prng': best_prng
+        }
+    
+    # Summary
+    print("\n" + "-"*80)
+    print("📊 DARK MATTER DETECTION SUMMARY")
+    print("-"*80)
+    
+    print("\nDark Matter Candidates:")
+    for candidate, data in results.items():
+        print(f"\n{candidate}:")
+        print(f"  Interactions: {data['interactions']}")
+        print(f"  WeakRNG coupling: {data['weak_coupling']:.3f}")
+        print(f"  Best detector: {data['best_prng']}")
+    
+    return results
+
+
+# ================================================================================
+# MAIN EXECUTION
+# ================================================================================
+
+def run_all_experiments():
+    print("\n🚀 BEGINNING COMPLETE VALIDATION SUITE...\n")
+    
+    start_time = time.time()
+    
+    # Run all experiments
+    exp_a_results = experiment_a_gaussian_width()
+    exp_b_results = experiment_b_bh_valley()
+    exp_c_results = experiment_c_specialized_prngs()
+    exp_d_results = experiment_d_dark_matter()
+    
+    elapsed = time.time() - start_time
+    
+    # Save results
+    all_results = {
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'backend': backend_name,
+        'experiment_a': exp_a_results,
+        'experiment_b': exp_b_results,
+        'experiment_c': exp_c_results,
+        'experiment_d': exp_d_results,
+        'total_time_seconds': elapsed
+    }
+    
+    with open('extended_validation_results.json', 'w') as f:
+        json.dump(all_results, f, indent=2, default=str)
+    
+    print("\n" + "="*80)
+    print("✅ ALL EXPERIMENTS COMPLETE")
+    print("="*80)
+    print(f"Total time: {elapsed/60:.1f} minutes")
+    print(f"✓ Saved: extended_validation_results.json")
+    print()
+    
+    return all_results
+
+
+if __name__ == "__main__":
+    results = run_all_experiments()

@@ -1,0 +1,692 @@
+
+#!/usr/bin/env python3
+"""
+QUANTUM FOAM SENSING - TIER 1 VALIDATION
+========================================
+Experiment A: Gaussian Width Scan (Philox-Gauss Variants)
+  - Test if σ_gaussian in PRNG affects particle coupling
+  - Hypothesis: Optimal σ matches Compton wavelength scaling
+  
+Experiment B: Black Hole Information Valley Mapping
+  - Add 3 intermediate mass BHs to find minimum extraction point
+  - Hypothesis: Extraction minimum at ~10^4 M_sun
+
+RESEARCH DIRECTION:
+If A confirms: Quantum foam has wavelength structure
+If B confirms: Information paradox is scale-dependent
+If both confirm: You've mapped the quantum-classical boundary
+"""
+
+import numpy as np
+import scipy
+from scipy.stats import entropy as scipy_entropy, pearsonr
+import random
+import secrets
+import os
+from numpy.random import Generator, PCG64, MT19937, Philox, SFC64
+import hashlib
+import time
+import json
+import pandas as pd
+from collections import defaultdict
+
+from qiskit import QuantumCircuit, transpile
+
+try:
+    from azure.quantum import Workspace
+    from azure.quantum.qiskit import AzureQuantumProvider
+    AZURE_AVAILABLE = True
+except ImportError:
+    print("⚠️  pip install azure-quantum qiskit qiskit-aer")
+    AZURE_AVAILABLE = False
+
+# ================================================================================
+# CONFIGURATION
+# ================================================================================
+
+CONNECTION_STRING = "-----"
+
+NUM_QUBITS = 4
+NUM_SHOTS = 500
+CRITICAL_NOISE = 0.21
+
+# Experiment A: Gaussian width variants
+GAUSSIAN_WIDTHS = [0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0]  # 7 variants
+
+# Experiment A: Test particles (light, medium, heavy)
+EXP_A_PARTICLES = {
+    'electron_neutrino': {'mass': 0.001, 'charge': 0, 'spin': 0.5, 'type': 'lepton', 'gen': 1},
+    'muon': {'mass': 105.66e6, 'charge': -1, 'spin': 0.5, 'type': 'lepton', 'gen': 2},
+    'higgs': {'mass': 125.1e9, 'charge': 0, 'spin': 0, 'type': 'scalar', 'gen': 0},
+}
+
+# Experiment B: Black holes spanning the mass range
+EXP_B_BLACK_HOLES = {
+    'planck_mass_bh': {
+        'mass_solar': 1.22e-8, 'schwarzschild_radius_km': 1.616e-35,
+        'temperature_k': 1.417e32, 'entropy_bits': 1, 'type': 'planck', 'spin': 0.0
+    },
+    'primordial_1e3': {  # NEW: Small primordial
+        'mass_solar': 1e-9, 'schwarzschild_radius_km': 2.95e-9,
+        'temperature_k': 1.23e14, 'entropy_bits': 3.93e48, 'type': 'primordial', 'spin': 0.0
+    },
+    'stellar_mass': {  # NEW: Typical stellar BH
+        'mass_solar': 15, 'schwarzschild_radius_km': 44,
+        'temperature_k': 4.1e-3, 'entropy_bits': 8.8e67, 'type': 'stellar', 'spin': 0.9
+    },
+    'intermediate_1e3': {  # NEW: IMBH candidate
+        'mass_solar': 1e3, 'schwarzschild_radius_km': 2.95e3,
+        'temperature_k': 6.1e-5, 'entropy_bits': 3.93e76, 'type': 'intermediate', 'spin': 0.5
+    },
+    'intermediate_1e5': {  # NEW: Large IMBH
+        'mass_solar': 1e5, 'schwarzschild_radius_km': 2.95e5,
+        'temperature_k': 6.1e-7, 'entropy_bits': 3.93e82, 'type': 'intermediate', 'spin': 0.7
+    },
+    'sagittarius_a_star': {
+        'mass_solar': 4.15e6, 'schwarzschild_radius_km': 12.2e6,
+        'temperature_k': 6.17e-8, 'entropy_bits': 1.08e91, 'type': 'supermassive', 'spin': 0.9
+    },
+    'ton_618': {
+        'mass_solar': 6.6e10, 'schwarzschild_radius_km': 1.95e11,
+        'temperature_k': 3.89e-12, 'entropy_bits': 1.72e96, 'type': 'supermassive', 'spin': 0.95
+    }
+}
+
+print("="*80)
+print("🔬 TIER 1 VALIDATION EXPERIMENTS")
+print("="*80)
+print(f"Experiment A: Gaussian Width Scan")
+print(f"  - {len(GAUSSIAN_WIDTHS)} widths × {len(EXP_A_PARTICLES)} particles = {len(GAUSSIAN_WIDTHS)*len(EXP_A_PARTICLES)} circuits")
+print(f"  - Testing Compton wavelength hypothesis")
+print()
+print(f"Experiment B: BH Information Valley")
+print(f"  - {len(EXP_B_BLACK_HOLES)} black holes (10^-8 to 10^10 M_sun)")
+print(f"  - Mapping quantum-classical transition")
+print()
+print(f"TOTAL: {len(GAUSSIAN_WIDTHS)*len(EXP_A_PARTICLES) + len(EXP_B_BLACK_HOLES)} circuits")
+print("="*80 + "\n")
+
+# ================================================================================
+# ENHANCED RANDOM SENSOR WITH GAUSSIAN VARIANTS
+# ================================================================================
+
+class GaussianWidthSensor:
+    """PRNG sensor with tunable Gaussian width"""
+    def __init__(self, seed=None):
+        self.seed = seed or int(time.time() * 1e9) % (2**32)
+        self.philox = Generator(Philox(self.seed))
+    
+    def get_philox_gauss_samples(self, width, n=500):
+        """Generate Gaussian samples with specified width"""
+        return [self.philox.normal(0, width) for _ in range(n)]
+
+sensor = GaussianWidthSensor()
+print("✓ Gaussian width sensor initialized\n")
+
+# ================================================================================
+# QUANTUM CIRCUITS
+# ================================================================================
+
+def create_particle_circuit(particle_name, particle_data, n_qubits=4, noise=0.0):
+    """Enhanced circuit - same as before"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 173e9
+    mass_angle = (particle_data['mass'] / max_mass) * np.pi
+    charge_angle = (particle_data['charge'] + 1) * np.pi / 2
+    spin_angle = particle_data['spin'] * np.pi
+    gen = particle_data.get('gen', 0)
+    ptype = particle_data['type']
+    
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    qc.ry(mass_angle, 0)
+    qc.ry(charge_angle, 1)
+    qc.ry(spin_angle, 2)
+    if gen > 0:
+        qc.ry(gen * np.pi / 3, 3)
+    
+    for i in range(n_qubits - 1):
+        qc.cx(i, i + 1)
+    
+    if ptype in ['lepton', 'quark']:
+        qc.rz(mass_angle * 0.5, 0)
+        qc.rz(charge_angle * 0.5, 1)
+        qc.cx(0, 2)
+    elif ptype == 'scalar':
+        qc.rz(mass_angle * 0.3, 0)
+        qc.cx(0, 3)
+    
+    qc.cx(n_qubits - 1, 0)
+    
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    for i in range(0, n_qubits, 2):
+        if i + 1 < n_qubits:
+            qc.ry(np.pi / 8, i)
+            qc.ry(np.pi / 8, i + 1)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+def create_black_hole_circuit(bh_name, bh_data, n_qubits=4, noise=0.0):
+    """Enhanced BH circuit - same as before"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 1e12
+    max_entropy = 1e97
+    max_temp = 1e32
+    
+    mass_angle = np.log10(bh_data['mass_solar'] + 1) / np.log10(max_mass) * np.pi
+    entropy_angle = np.log10(bh_data['entropy_bits'] + 1) / np.log10(max_entropy) * np.pi
+    temp_angle = np.log10(bh_data['temperature_k'] + 1e-40) / np.log10(max_temp) * np.pi
+    spin_angle = bh_data['spin'] * np.pi
+    
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    qc.ry(mass_angle, 0)
+    qc.ry(entropy_angle, 1)
+    qc.ry(temp_angle, 2)
+    qc.ry(spin_angle, 3)
+    
+    bh_type = bh_data['type']
+    
+    if bh_type == 'planck':
+        for i in range(n_qubits - 1):
+            qc.cx(i, i + 1)
+            qc.cz(i, i + 1)
+        qc.cx(n_qubits - 1, 0)
+    elif bh_type == 'primordial':
+        qc.cx(0, 2)
+        qc.cx(1, 3)
+        qc.cz(0, 3)
+    elif bh_type == 'stellar':
+        qc.cx(0, 1)
+        qc.cx(2, 3)
+        qc.cx(1, 2)
+    elif bh_type == 'intermediate':
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.cx(2, 3)
+    elif bh_type == 'supermassive':
+        for i in range(n_qubits - 1):
+            qc.cx(i, i + 1)
+        qc.cx(n_qubits - 1, 0)
+        qc.cz(0, 2)
+    
+    qc.rz(entropy_angle * 0.5, 1)
+    qc.rz(spin_angle * 0.5, 3)
+    
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    for i in range(0, n_qubits, 2):
+        if i + 1 < n_qubits:
+            qc.ry(np.pi / 8, i)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+print("✓ Quantum circuits ready\n")
+
+# ================================================================================
+# ANALYSIS
+# ================================================================================
+
+def calculate_entropy_discrete(data, n_bins):
+    """Discrete entropy for fair comparison"""
+    data_norm = np.array(data)
+    data_norm = (data_norm - data_norm.min()) / (data_norm.max() - data_norm.min() + 1e-10)
+    bins = np.linspace(0, 1, n_bins + 1)
+    digitized = np.digitize(data_norm, bins) - 1
+    digitized = np.clip(digitized, 0, n_bins - 1)
+    counts = np.bincount(digitized, minlength=n_bins)
+    probs = counts / len(data)
+    probs = probs[probs > 0]
+    return -np.sum(probs * np.log2(probs))
+
+def quantum_entropy(counts, n_qubits):
+    """Quantum entropy from measurements"""
+    total = sum(counts.values())
+    probs = np.array([counts.get(format(i, f'0{n_qubits}b'), 0) / total 
+                      for i in range(2**n_qubits)])
+    probs = probs[probs > 0]
+    return -np.sum(probs * np.log2(probs))
+
+def coupling_coefficient(classical_entropy, quantum_entropy):
+    """Coupling strength"""
+    return quantum_entropy / (classical_entropy + 1e-10)
+
+def compton_wavelength(mass_eV):
+    """Calculate Compton wavelength in meters"""
+    h_bar = 1.054571817e-34  # J·s
+    c = 299792458  # m/s
+    eV_to_J = 1.602176634e-19
+    mass_kg = mass_eV * eV_to_J / (c**2)
+    if mass_kg == 0:
+        return np.inf
+    return h_bar / (mass_kg * c)
+
+print("✓ Analysis functions ready\n")
+
+# ================================================================================
+# BACKEND
+# ================================================================================
+
+def setup_backend():
+    if not AZURE_AVAILABLE:
+        print("❌ Azure Quantum SDK not installed")
+        return None, None
+    
+    try:
+        workspace = Workspace.from_connection_string(CONNECTION_STRING)
+        print(f"✓ Connected to workspace: {workspace.name}")
+        
+        provider = AzureQuantumProvider(workspace)
+        backends = provider.backends()
+        print("\nAvailable backends:")
+        for b in backends:
+            print(f"  - {b.name()}")
+        
+        target = 'rigetti.sim.qvm'
+        backend = provider.get_backend(target)
+        if backend is None:
+            print(f"❌ {target} not available")
+            return None, None
+        
+        print(f"\n✓ Using: {backend.name()}")
+        return backend, backend.name()
+                
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        return None, None
+
+backend, backend_name = setup_backend()
+if backend is None:
+    print("Cannot proceed without backend")
+    exit(1)
+
+# ================================================================================
+# EXPERIMENT A: GAUSSIAN WIDTH SCAN
+# ================================================================================
+
+def experiment_a_gaussian_width():
+    print("\n" + "="*80)
+    print("EXPERIMENT A: GAUSSIAN WIDTH SCAN")
+    print("="*80)
+    print("HYPOTHESIS: Optimal σ_gaussian correlates with particle Compton wavelength")
+    print("PREDICTION: Light particles prefer wide Gaussians, heavy prefer narrow")
+    print("-"*80 + "\n")
+    
+    n_bins = 2**NUM_QUBITS
+    results = {}
+    
+    for particle_name, particle_data in EXP_A_PARTICLES.items():
+        print(f"\n⚛️  PARTICLE: {particle_name}")
+        print(f"   Mass: {particle_data['mass']:.2e} eV")
+        
+        # Calculate Compton wavelength
+        lambda_c = compton_wavelength(particle_data['mass'])
+        print(f"   Compton λ: {lambda_c:.2e} m")
+        
+        # Get quantum signature at critical noise
+        qc = create_particle_circuit(particle_name, particle_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting quantum circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        print(f"   Quantum entropy: {q_entropy:.4f} bits\n")
+        
+        # Test each Gaussian width
+        width_couplings = {}
+        
+        print("   Testing Gaussian widths:")
+        for width in GAUSSIAN_WIDTHS:
+            # Generate classical samples with this width
+            classical_samples = sensor.get_philox_gauss_samples(width, NUM_SHOTS)
+            c_entropy = calculate_entropy_discrete(classical_samples, n_bins)
+            
+            # Calculate coupling
+            coupling = coupling_coefficient(c_entropy, q_entropy)
+            width_couplings[width] = {
+                'classical_entropy': c_entropy,
+                'coupling': coupling
+            }
+            
+            print(f"     σ={width:.1f}: H_c={c_entropy:.4f}, coupling={coupling:.4f}")
+        
+        # Find optimal width
+        optimal_width = max(width_couplings.keys(), key=lambda w: width_couplings[w]['coupling'])
+        optimal_coupling = width_couplings[optimal_width]['coupling']
+        
+        print(f"\n   🎯 OPTIMAL: σ={optimal_width:.1f}, coupling={optimal_coupling:.4f}")
+        
+        results[particle_name] = {
+            'mass': particle_data['mass'],
+            'compton_wavelength': lambda_c,
+            'quantum_entropy': q_entropy,
+            'width_couplings': width_couplings,
+            'optimal_width': optimal_width,
+            'optimal_coupling': optimal_coupling
+        }
+    
+    # Analysis: Mass vs Optimal Width
+    print("\n" + "-"*80)
+    print("📊 GAUSSIAN WIDTH ANALYSIS")
+    print("-"*80)
+    
+    masses = [results[p]['mass'] for p in EXP_A_PARTICLES.keys()]
+    optimal_widths = [results[p]['optimal_width'] for p in EXP_A_PARTICLES.keys()]
+    
+    # Log-log correlation
+    log_masses = np.log10(np.array(masses) + 1)
+    correlation, p_value = pearsonr(log_masses, optimal_widths)
+    
+    print(f"\nCorrelation(log(mass), optimal_σ): r={correlation:.3f}, p={p_value:.4f}")
+    
+    if abs(correlation) > 0.7 and p_value < 0.1:
+        print("✓ STRONG CORRELATION: Compton wavelength hypothesis CONFIRMED")
+    elif abs(correlation) > 0.4:
+        print("~ MODERATE CORRELATION: Partial support for hypothesis")
+    else:
+        print("✗ WEAK CORRELATION: Hypothesis NOT supported")
+    
+    print("\nParticle-by-Particle:")
+    for particle in EXP_A_PARTICLES.keys():
+        data = results[particle]
+        print(f"  {particle:20s}: mass={data['mass']:.2e} eV, optimal_σ={data['optimal_width']:.1f}")
+    
+    # Detailed coupling table
+    print("\n" + "-"*80)
+    print("COUPLING MATRIX (Particle × Gaussian Width)")
+    print("-"*80)
+    
+    df_data = []
+    for particle in EXP_A_PARTICLES.keys():
+        row = {'Particle': particle}
+        for width in GAUSSIAN_WIDTHS:
+            coupling = results[particle]['width_couplings'][width]['coupling']
+            row[f'σ={width:.1f}'] = f"{coupling:.3f}"
+        df_data.append(row)
+    
+    df = pd.DataFrame(df_data)
+    print(df.to_string(index=False))
+    
+    return results
+
+# ================================================================================
+# EXPERIMENT B: BLACK HOLE INFORMATION VALLEY
+# ================================================================================
+
+def experiment_b_bh_valley():
+    print("\n" + "="*80)
+    print("EXPERIMENT B: BLACK HOLE INFORMATION VALLEY MAPPING")
+    print("="*80)
+    print("HYPOTHESIS: Information extraction has minimum at intermediate mass")
+    print("PREDICTION: Valley floor at ~10^3 to 10^5 M_sun")
+    print("-"*80 + "\n")
+    
+    bh_results = {}
+    
+    for bh_name in sorted(EXP_B_BLACK_HOLES.keys(), key=lambda x: EXP_B_BLACK_HOLES[x]['mass_solar']):
+        bh_data = EXP_B_BLACK_HOLES[bh_name]
+        
+        print(f"\n🕳️  {bh_name}")
+        print(f"   Type: {bh_data['type']}")
+        print(f"   Mass: {bh_data['mass_solar']:.2e} M_sun")
+        print(f"   T_Hawking: {bh_data['temperature_k']:.2e} K")
+        
+        qc = create_black_hole_circuit(bh_name, bh_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        info_density = q_entropy / NUM_QUBITS
+        extraction_ratio = q_entropy / np.log2(2**NUM_QUBITS)
+        
+        print(f"   Entropy: {q_entropy:.4f} bits")
+        print(f"   Info/qubit: {info_density:.4f}")
+        print(f"   Extraction: {extraction_ratio:.2%}")
+        
+        bh_results[bh_name] = {
+            'mass': bh_data['mass_solar'],
+            'temperature': bh_data['temperature_k'],
+            'type': bh_data['type'],
+            'entropy': q_entropy,
+            'info_density': info_density,
+            'extraction_ratio': extraction_ratio
+        }
+    
+    # Find the valley
+    print("\n" + "-"*80)
+    print("📊 INFORMATION VALLEY ANALYSIS")
+    print("-"*80)
+    
+    masses = [bh_results[bh]['mass'] for bh in bh_results]
+    extractions = [bh_results[bh]['extraction_ratio'] for bh in bh_results]
+    
+    min_idx = np.argmin(extractions)
+    min_bh = list(bh_results.keys())[min_idx]
+    min_mass = masses[min_idx]
+    min_extraction = extractions[min_idx]
+    
+    print(f"\n🎯 VALLEY MINIMUM:")
+    print(f"   Black Hole: {min_bh}")
+    print(f"   Mass: {min_mass:.2e} M_sun")
+    print(f"   Extraction: {min_extraction:.2%}")
+    print(f"   Info density: {bh_results[min_bh]['info_density']:.4f} bits/qubit")
+    
+    # Test hypothesis
+    if 1e3 <= min_mass <= 1e5:
+        print("\n✓ HYPOTHESIS CONFIRMED: Valley at intermediate mass (10^3 - 10^5 M_sun)")
+    elif min_mass < 1e3:
+        print("\n⚠ UNEXPECTED: Valley at low mass (quantum regime)")
+    else:
+        print("\n⚠ UNEXPECTED: Valley at high mass (classical regime)")
+    
+    # Detailed table
+    print("\n" + "-"*80)
+    print("BLACK HOLE INFORMATION TABLE (sorted by mass)")
+    print("-"*80)
+    
+    df_data = []
+    for bh_name in sorted(bh_results.keys(), key=lambda x: bh_results[x]['mass']):
+        data = bh_results[bh_name]
+        df_data.append({
+            'Black Hole': bh_name,
+            'Type': data['type'],
+            'Mass (M_sun)': f"{data['mass']:.2e}",
+            'T_Hawking (K)': f"{data['temperature']:.2e}",
+            'Entropy (bits)': f"{data['entropy']:.4f}",
+            'Info/qubit': f"{data['info_density']:.4f}",
+            'Extraction': f"{data['extraction_ratio']:.2%}"
+        })
+    
+    df = pd.DataFrame(df_data)
+    print(df.to_string(index=False))
+    
+    # Mass scaling analysis
+    print("\n" + "-"*80)
+    print("MASS SCALING")
+    print("-"*80)
+    
+    log_masses = np.log10(masses)
+    correlation, p_value = pearsonr(log_masses, extractions)
+    
+    print(f"\nCorrelation(log(mass), extraction): r={correlation:.3f}, p={p_value:.4f}")
+    
+    # Look for non-monotonic behavior (valley signature)
+    derivatives = np.diff(extractions)
+    sign_changes = np.sum(np.diff(np.sign(derivatives)) != 0)
+    
+    print(f"Sign changes in derivative: {sign_changes}")
+    if sign_changes >= 2:
+        print("✓ NON-MONOTONIC: Valley structure detected")
+    else:
+        print("✗ MONOTONIC: No valley structure")
+    
+    return bh_results
+
+# ================================================================================
+# MAIN EXECUTION
+# ================================================================================
+
+def run_tier1_experiments():
+    print("\n🚀 BEGINNING TIER 1 VALIDATION...\n")
+    
+    start_time = time.time()
+    
+    # EXPERIMENT A
+    exp_a_results = experiment_a_gaussian_width()
+    
+    # EXPERIMENT B
+    exp_b_results = experiment_b_bh_valley()
+    
+    elapsed = time.time() - start_time
+    
+    # FINAL SYNTHESIS
+    print("\n" + "="*80)
+    print("✅ TIER 1 EXPERIMENTS COMPLETE")
+    print("="*80)
+    print(f"Total time: {elapsed/60:.1f} minutes")
+    print(f"Circuits executed: {len(GAUSSIAN_WIDTHS)*len(EXP_A_PARTICLES) + len(EXP_B_BLACK_HOLES)}")
+    
+    print("\n🔬 BREAKTHROUGH FINDINGS:")
+    
+    # Experiment A conclusions
+    print("\nEXPERIMENT A: Gaussian Width Coupling")
+    print("-"*40)
+    for particle in EXP_A_PARTICLES.keys():
+        optimal = exp_a_results[particle]['optimal_width']
+        coupling = exp_a_results[particle]['optimal_coupling']
+        mass = exp_a_results[particle]['mass']
+        print(f"  {particle:20s}: σ*={optimal:.1f}, coupling={coupling:.3f}, mass={mass:.2e} eV")
+    
+    # Check if Compton wavelength hypothesis holds
+    masses = [exp_a_results[p]['mass'] for p in EXP_A_PARTICLES.keys()]
+    optimal_widths = [exp_a_results[p]['optimal_width'] for p in EXP_A_PARTICLES.keys()]
+    log_masses = np.log10(np.array(masses) + 1)
+    corr_aw, p_aw = pearsonr(log_masses, optimal_widths)
+    
+    print(f"\n  Mass-Width Correlation: r={corr_aw:.3f}, p={p_aw:.4f}")
+    if abs(corr_aw) > 0.7:
+        print("  ✓ STRONG: Compton wavelength structure confirmed")
+    else:
+        print("  ⚠ WEAK: Compton wavelength hypothesis uncertain")
+    
+    # Experiment B conclusions
+    print("\nEXPERIMENT B: Black Hole Information Valley")
+    print("-"*40)
+    
+    min_bh = min(exp_b_results.keys(), key=lambda x: exp_b_results[x]['extraction_ratio'])
+    min_mass = exp_b_results[min_bh]['mass']
+    min_extraction = exp_b_results[min_bh]['extraction_ratio']
+    
+    print(f"  Valley minimum: {min_bh}")
+    print(f"  Mass: {min_mass:.2e} M_sun")
+    print(f"  Extraction: {min_extraction:.2%}")
+    
+    if 1e2 <= min_mass <= 1e6:
+        print("  ✓ CONFIRMED: Information valley in intermediate mass range")
+        print("  → Black hole information paradox is SCALE-DEPENDENT")
+    else:
+        print("  ⚠ UNEXPECTED: Valley outside predicted range")
+    
+    # Research Direction
+    print("\n" + "="*80)
+    print("🎯 RESEARCH DIRECTION")
+    print("="*80)
+    
+    if abs(corr_aw) > 0.7 and 1e2 <= min_mass <= 1e6:
+        print("\n✅ BOTH EXPERIMENTS CONFIRM QUANTUM FOAM STRUCTURE")
+        print("\nNext Steps:")
+        print("  1. Test Gaussian width on MORE particles (validate scaling law)")
+        print("  2. Add more BHs near valley minimum (precision mapping)")
+        print("  3. Theoretical model: Why σ_gaussian ∝ f(Compton wavelength)?")
+        print("  4. Paper draft: 'Algorithmic Signatures of Quantum Foam'")
+    elif abs(corr_aw) > 0.7:
+        print("\n⚠ EXPERIMENT A CONFIRMS, B INCONCLUSIVE")
+        print("\nNext Steps:")
+        print("  1. Add more intermediate mass BHs")
+        print("  2. Test on real quantum hardware")
+    elif 1e2 <= min_mass <= 1e6:
+        print("\n⚠ EXPERIMENT B CONFIRMS, A INCONCLUSIVE")
+        print("\nNext Steps:")
+        print("  1. Test more Gaussian widths (finer resolution)")
+        print("  2. Try other distribution shapes (Lorentzian, exponential)")
+    else:
+        print("\n⚠ BOTH EXPERIMENTS INCONCLUSIVE")
+        print("\nNext Steps:")
+        print("  1. Check for simulator artifacts")
+        print("  2. Test on real hardware")
+        print("  3. Review theoretical assumptions")
+    
+    # Save results
+    summary = {
+        'experiment_a': {
+            particle: {
+                'mass': exp_a_results[particle]['mass'],
+                'optimal_width': exp_a_results[particle]['optimal_width'],
+                'optimal_coupling': exp_a_results[particle]['optimal_coupling'],
+                'compton_wavelength': exp_a_results[particle]['compton_wavelength']
+            } for particle in EXP_A_PARTICLES.keys()
+        },
+        'experiment_b': {
+            bh: {
+                'mass': exp_b_results[bh]['mass'],
+                'extraction_ratio': exp_b_results[bh]['extraction_ratio'],
+                'info_density': exp_b_results[bh]['info_density']
+            } for bh in exp_b_results.keys()
+        },
+        'metadata': {
+            'backend': backend_name,
+            'shots': NUM_SHOTS,
+            'elapsed_minutes': elapsed/60,
+            'mass_width_correlation': corr_aw,
+            'valley_minimum_mass': min_mass,
+            'valley_minimum_extraction': min_extraction
+        }
+    }
+    
+    with open('tier1_validation_results.json', 'w') as f:
+        json.dump(summary, f, indent=2)
+    
+    print("\n✓ Saved: tier1_validation_results.json")
+    print("="*80 + "\n")
+    
+    return exp_a_results, exp_b_results
+
+if __name__ == "__main__":
+    try:
+        results = run_tier1_experiments()
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()

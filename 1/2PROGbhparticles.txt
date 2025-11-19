@@ -1,0 +1,685 @@
+
+#!/usr/bin/env python3
+"""
+QUANTUM FOAM SENSING - FOCUSED SECTION A TESTS
+==============================================
+MINIMAL TEST SUITE - High-value experiments only
+
+Test 1: PRNG Coupling (5 PRNGs × 3 particles = 15 circuits)
+  - Best: pcg64, os_random, secrets_bits
+  - Worst: combined_mean, philox_gauss
+  - Particles: electron (light), top_quark (heavy), higgs (scalar)
+
+Test 2: Black Hole Information (3 BHs at σ=0.21)
+  - Planck mass: Maximum quantum
+  - Sagittarius A*: Intermediate
+  - TON 618: Maximum classical
+
+Test 3: Critical Noise Fine-Tuning (3 particles, 10 noise points each = 30 circuits)
+  - Higgs: Highest foam density
+  - Top quark: Lowest coupling
+  - Electron neutrino: High variance neutrino
+
+Total: 15 + 3 + 30 = 48 quantum circuits (vs 340!)
+"""
+
+import numpy as np
+import scipy
+from scipy.stats import entropy as scipy_entropy, ks_2samp, pearsonr
+import random
+import secrets
+import os
+from numpy.random import Generator, PCG64, MT19937, Philox, SFC64
+import hashlib
+import time
+import json
+import pandas as pd
+from collections import defaultdict
+
+from qiskit import QuantumCircuit, transpile
+
+try:
+    from azure.quantum import Workspace
+    from azure.quantum.qiskit import AzureQuantumProvider
+    AZURE_AVAILABLE = True
+except ImportError:
+    print("⚠️  pip install azure-quantum qiskit qiskit-aer")
+    AZURE_AVAILABLE = False
+
+# ================================================================================
+# CONFIGURATION
+# ================================================================================
+
+CONNECTION_STRING = "xxxxx"
+
+NUM_QUBITS = 4
+NUM_SHOTS = 500
+CRITICAL_NOISE = 0.21
+
+# Test 1: Selected PRNGs (based on previous results)
+SELECTED_PRNGS = ['pcg64', 'os_random', 'secrets_bits', 'combined_mean', 'philox_gauss']
+
+# Test 1: Selected particles (light, heavy, scalar)
+TEST_PARTICLES = ['electron', 'top_quark', 'higgs']
+
+# Test 2: Selected black holes (quantum, intermediate, classical)
+TEST_BLACK_HOLES = ['planck_mass_bh', 'sagittarius_a_star', 'ton_618']
+
+# Test 3: Fine noise sweep for critical tuning
+FINE_NOISE_SWEEP = np.linspace(0.15, 0.30, 10)  # 10 points around σ=0.21
+
+# Particles for Test 3 (different physics)
+CRITICAL_TEST_PARTICLES = ['higgs', 'top_quark', 'electron_neutrino']
+
+print("="*80)
+print("🔬 QUANTUM FOAM SENSING - FOCUSED TESTS")
+print("="*80)
+print(f"Test 1: PRNG Coupling - {len(SELECTED_PRNGS)} PRNGs × {len(TEST_PARTICLES)} particles = {len(SELECTED_PRNGS)*len(TEST_PARTICLES)} circuits")
+print(f"Test 2: BH Information - {len(TEST_BLACK_HOLES)} black holes")
+print(f"Test 3: Critical Noise - {len(CRITICAL_TEST_PARTICLES)} particles × {len(FINE_NOISE_SWEEP)} noise points = {len(CRITICAL_TEST_PARTICLES)*len(FINE_NOISE_SWEEP)} circuits")
+print(f"TOTAL: {len(SELECTED_PRNGS)*len(TEST_PARTICLES) + len(TEST_BLACK_HOLES) + len(CRITICAL_TEST_PARTICLES)*len(FINE_NOISE_SWEEP)} quantum circuits")
+print("="*80 + "\n")
+
+# ================================================================================
+# PARTICLE ENDPOINTS
+# ================================================================================
+
+PARTICLE_ENDPOINTS = {
+    'electron': {'mass': 0.511e6, 'charge': -1, 'spin': 0.5, 'type': 'lepton', 'gen': 1},
+    'top_quark': {'mass': 172.69e9, 'charge': 2/3, 'spin': 0.5, 'type': 'quark', 'gen': 3},
+    'higgs': {'mass': 125.1e9, 'charge': 0, 'spin': 0, 'type': 'scalar', 'gen': 0},
+    'electron_neutrino': {'mass': 0.001, 'charge': 0, 'spin': 0.5, 'type': 'lepton', 'gen': 1},
+}
+
+BLACK_HOLE_ENDPOINTS = {
+    'planck_mass_bh': {
+        'mass_solar': 1.22e-8, 'schwarzschild_radius_km': 1.616e-35,
+        'temperature_k': 1.417e32, 'entropy_bits': 1, 'type': 'planck', 'spin': 0.0
+    },
+    'sagittarius_a_star': {
+        'mass_solar': 4.15e6, 'schwarzschild_radius_km': 12.2e6,
+        'temperature_k': 6.17e-8, 'entropy_bits': 1.08e91, 'type': 'supermassive', 'spin': 0.9
+    },
+    'ton_618': {
+        'mass_solar': 6.6e10, 'schwarzschild_radius_km': 1.95e11,
+        'temperature_k': 3.89e-12, 'entropy_bits': 1.72e96, 'type': 'supermassive', 'spin': 0.95
+    }
+}
+
+# ================================================================================
+# RANDOM SENSOR - SELECTED SOURCES ONLY
+# ================================================================================
+
+class QuantumRandomSensor:
+    def __init__(self, seed=None):
+        self.seed = seed or int(time.time() * 1e9) % (2**32)
+        random.seed(self.seed)
+        self.secrets = secrets
+        self.pcg64 = Generator(PCG64(self.seed))
+        self.mt19937 = Generator(MT19937(self.seed))
+        self.philox = Generator(Philox(self.seed))
+        self.sfc64 = Generator(SFC64(self.seed))
+        self.hash_counter = 0
+        
+        self.sources = {
+            'pcg64': lambda: self.pcg64.random(),
+            'os_random': lambda: int.from_bytes(os.urandom(4), 'big') / (2**32),
+            'secrets_bits': lambda: self.secrets.randbits(32) / (2**32),
+            'philox_gauss': lambda: self.philox.standard_normal(),
+            'combined_mean': self.combined_mean,
+        }
+    
+    def combined_mean(self):
+        return np.mean([random.random(), self.secrets.randbits(32)/(2**32), 
+                       self.pcg64.random(), self.mt19937.random()])
+    
+    def get_samples(self, source_name, n=1000):
+        if source_name not in self.sources:
+            raise ValueError(f"Unknown source: {source_name}")
+        return [self.sources[source_name]() for _ in range(n)]
+    
+    def get_all_samples(self, n=1000):
+        samples = {}
+        for name in SELECTED_PRNGS:
+            samples[name] = self.get_samples(name, n)
+        return samples
+
+sensor = QuantumRandomSensor()
+print("✓ Random sensor: 5 selected sources\n")
+
+# ================================================================================
+# QUANTUM CIRCUITS
+# ================================================================================
+
+def create_particle_circuit(particle_name, particle_data, n_qubits=4, noise=0.0):
+    """Enhanced circuit with strong entanglement"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 173e9
+    mass_angle = (particle_data['mass'] / max_mass) * np.pi
+    charge_angle = (particle_data['charge'] + 1) * np.pi / 2
+    spin_angle = particle_data['spin'] * np.pi
+    gen = particle_data.get('gen', 0)
+    ptype = particle_data['type']
+    
+    # Superposition
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    # Encode properties
+    qc.ry(mass_angle, 0)
+    qc.ry(charge_angle, 1)
+    qc.ry(spin_angle, 2)
+    if gen > 0:
+        qc.ry(gen * np.pi / 3, 3)
+    
+    # Strong entanglement
+    for i in range(n_qubits - 1):
+        qc.cx(i, i + 1)
+    
+    # Type-specific
+    if ptype in ['lepton', 'quark']:
+        qc.rz(mass_angle * 0.5, 0)
+        qc.rz(charge_angle * 0.5, 1)
+        qc.cx(0, 2)
+    elif ptype == 'scalar':
+        qc.rz(mass_angle * 0.3, 0)
+        qc.cx(0, 3)
+    
+    # Ring topology
+    qc.cx(n_qubits - 1, 0)
+    
+    # Noise
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    # Final mixing
+    for i in range(0, n_qubits, 2):
+        if i + 1 < n_qubits:
+            qc.ry(np.pi / 8, i)
+            qc.ry(np.pi / 8, i + 1)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+def create_black_hole_circuit(bh_name, bh_data, n_qubits=4, noise=0.0):
+    """Enhanced black hole circuit"""
+    qc = QuantumCircuit(n_qubits, n_qubits)
+    
+    max_mass = 1e12
+    max_entropy = 1e97
+    max_temp = 1e32
+    
+    mass_angle = np.log10(bh_data['mass_solar'] + 1) / np.log10(max_mass) * np.pi
+    entropy_angle = np.log10(bh_data['entropy_bits'] + 1) / np.log10(max_entropy) * np.pi
+    temp_angle = np.log10(bh_data['temperature_k'] + 1e-40) / np.log10(max_temp) * np.pi
+    spin_angle = bh_data['spin'] * np.pi
+    
+    for i in range(n_qubits):
+        qc.h(i)
+    
+    qc.ry(mass_angle, 0)
+    qc.ry(entropy_angle, 1)
+    qc.ry(temp_angle, 2)
+    qc.ry(spin_angle, 3)
+    
+    bh_type = bh_data['type']
+    
+    if bh_type == 'planck':
+        for i in range(n_qubits - 1):
+            qc.cx(i, i + 1)
+            qc.cz(i, i + 1)
+        qc.cx(n_qubits - 1, 0)
+    elif bh_type == 'supermassive':
+        for i in range(n_qubits - 1):
+            qc.cx(i, i + 1)
+        qc.cx(n_qubits - 1, 0)
+        qc.cz(0, 2)
+    
+    qc.rz(entropy_angle * 0.5, 1)
+    qc.rz(spin_angle * 0.5, 3)
+    
+    if noise > 0:
+        for i in range(n_qubits):
+            angle = noise * np.pi / 2
+            qc.rz(angle, i)
+            qc.rx(angle * 0.5, i)
+    
+    for i in range(0, n_qubits, 2):
+        if i + 1 < n_qubits:
+            qc.ry(np.pi / 8, i)
+    
+    qc.barrier()
+    qc.measure(range(n_qubits), range(n_qubits))
+    return qc
+
+print("✓ Enhanced circuits\n")
+
+# ================================================================================
+# ANALYSIS
+# ================================================================================
+
+def calculate_entropy_discrete(data, n_bins):
+    """Discrete entropy for fair comparison"""
+    data_norm = np.array(data)
+    data_norm = (data_norm - data_norm.min()) / (data_norm.max() - data_norm.min() + 1e-10)
+    bins = np.linspace(0, 1, n_bins + 1)
+    digitized = np.digitize(data_norm, bins) - 1
+    digitized = np.clip(digitized, 0, n_bins - 1)
+    counts = np.bincount(digitized, minlength=n_bins)
+    probs = counts / len(data)
+    probs = probs[probs > 0]
+    return -np.sum(probs * np.log2(probs))
+
+def quantum_entropy(counts, n_qubits):
+    """Quantum entropy from measurements"""
+    total = sum(counts.values())
+    probs = np.array([counts.get(format(i, f'0{n_qubits}b'), 0) / total 
+                      for i in range(2**n_qubits)])
+    probs = probs[probs > 0]
+    return -np.sum(probs * np.log2(probs))
+
+def mutual_information(x, y, bins=20):
+    """MI between distributions"""
+    hist_2d, _, _ = np.histogram2d(x, y, bins=bins)
+    hist_2d = hist_2d / (hist_2d.sum() + 1e-10)
+    px = hist_2d.sum(axis=1)
+    py = hist_2d.sum(axis=0)
+    mi = 0
+    for i in range(len(px)):
+        for j in range(len(py)):
+            if hist_2d[i,j] > 0:
+                mi += hist_2d[i,j] * np.log2(hist_2d[i,j] / (px[i] * py[j] + 1e-10) + 1e-10)
+    return max(0, mi)
+
+def coupling_coefficient(classical_entropy, quantum_entropy):
+    """Quantify PRNG-particle coupling strength"""
+    return quantum_entropy / (classical_entropy + 1e-10)
+
+print("✓ Analysis functions\n")
+
+# ================================================================================
+# BACKEND
+# ================================================================================
+
+def setup_backend():
+    if not AZURE_AVAILABLE:
+        print("❌ Azure Quantum SDK not installed")
+        return None, None
+    
+    try:
+        workspace = Workspace.from_connection_string(CONNECTION_STRING)
+        print(f"✓ Connected to workspace: {workspace.name}")
+        
+        provider = AzureQuantumProvider(workspace)
+        backends = provider.backends()
+        print("\nAvailable backends:")
+        for b in backends:
+            print(f"  - {b.name()}")
+        
+        target = 'rigetti.sim.qvm'
+        backend = provider.get_backend(target)
+        if backend is None:
+            print(f"❌ {target} not available")
+            return None, None
+        
+        print(f"\n✓ Using: {backend.name()}")
+        return backend, backend.name()
+                
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        return None, None
+
+backend, backend_name = setup_backend()
+if backend is None:
+    print("Cannot proceed without backend")
+    exit(1)
+
+# ================================================================================
+# TEST 1: PRNG QUANTUM COUPLING
+# ================================================================================
+
+def test_1_prng_coupling(num_samples=500):
+    print("\n" + "="*80)
+    print("TEST 1: PRNG QUANTUM COUPLING COEFFICIENTS")
+    print("="*80)
+    print(f"Testing {len(SELECTED_PRNGS)} PRNGs × {len(TEST_PARTICLES)} particles")
+    print(f"Hypothesis: Different PRNGs couple differently to particle types")
+    print("-"*80 + "\n")
+    
+    n_bins = 2**NUM_QUBITS
+    
+    # Get classical samples
+    classical_samples = sensor.get_all_samples(num_samples)
+    classical_entropies = {}
+    
+    for name, samples in classical_samples.items():
+        H = calculate_entropy_discrete(samples, n_bins)
+        classical_entropies[name] = H
+        print(f"Classical {name:20s}: H = {H:.4f} bits")
+    
+    print()
+    
+    # Test each PRNG with each particle at critical noise
+    coupling_matrix = {}
+    
+    for particle_name in TEST_PARTICLES:
+        print(f"\n🔬 Testing particle: {particle_name}")
+        particle_data = PARTICLE_ENDPOINTS[particle_name]
+        
+        qc = create_particle_circuit(particle_name, particle_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"  Submitting circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"  Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"  ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        print(f"  Quantum entropy: {q_entropy:.4f} bits")
+        
+        # Calculate coupling for each PRNG
+        couplings = {}
+        for prng_name in SELECTED_PRNGS:
+            c_entropy = classical_entropies[prng_name]
+            coupling = coupling_coefficient(c_entropy, q_entropy)
+            couplings[prng_name] = coupling
+            
+        coupling_matrix[particle_name] = couplings
+        
+        # Show results
+        print(f"  Coupling coefficients:")
+        sorted_couplings = sorted(couplings.items(), key=lambda x: x[1], reverse=True)
+        for prng, coeff in sorted_couplings:
+            print(f"    {prng:20s}: {coeff:.4f}")
+    
+    # Summary
+    print("\n" + "-"*80)
+    print("📊 COUPLING MATRIX SUMMARY")
+    print("-"*80)
+    
+    df_data = []
+    for particle in TEST_PARTICLES:
+        row = {'Particle': particle}
+        for prng in SELECTED_PRNGS:
+            row[prng] = f"{coupling_matrix[particle][prng]:.3f}"
+        df_data.append(row)
+    
+    df = pd.DataFrame(df_data)
+    print(df.to_string(index=False))
+    
+    # Find strongest couplings
+    print("\n🎯 STRONGEST COUPLINGS:")
+    for particle in TEST_PARTICLES:
+        best_prng = max(coupling_matrix[particle].items(), key=lambda x: x[1])
+        worst_prng = min(coupling_matrix[particle].items(), key=lambda x: x[1])
+        print(f"  {particle:20s}: BEST={best_prng[0]} ({best_prng[1]:.3f}), WORST={worst_prng[0]} ({worst_prng[1]:.3f})")
+    
+    return coupling_matrix
+
+# ================================================================================
+# TEST 2: BLACK HOLE INFORMATION EXTRACTION
+# ================================================================================
+
+def test_2_black_hole_info(num_samples=500):
+    print("\n" + "="*80)
+    print("TEST 2: BLACK HOLE INFORMATION EXTRACTION")
+    print("="*80)
+    print(f"Testing {len(TEST_BLACK_HOLES)} black holes at σ={CRITICAL_NOISE}")
+    print("Hypothesis: Smaller BHs have higher info density (quantum > classical)")
+    print("-"*80 + "\n")
+    
+    bh_results = {}
+    
+    for bh_name in TEST_BLACK_HOLES:
+        print(f"\n🕳️  Testing: {bh_name}")
+        bh_data = BLACK_HOLE_ENDPOINTS[bh_name]
+        print(f"   Type: {bh_data['type']}")
+        print(f"   Mass: {bh_data['mass_solar']:.2e} M_sun")
+        print(f"   Hawking T: {bh_data['temperature_k']:.2e} K")
+        print(f"   BH entropy: {bh_data['entropy_bits']:.2e} bits")
+        
+        qc = create_black_hole_circuit(bh_name, bh_data, NUM_QUBITS, CRITICAL_NOISE)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        
+        print(f"   Submitting circuit...")
+        job = backend.run(qc_trans, shots=NUM_SHOTS)
+        print(f"   Job ID: {job.job_id() if hasattr(job, 'job_id') else 'N/A'}")
+        print(f"   ⏳ Waiting...", end=" ", flush=True)
+        
+        result = job.result()
+        counts = result.get_counts()
+        print("✓")
+        
+        q_entropy = quantum_entropy(counts, NUM_QUBITS)
+        info_density = q_entropy / NUM_QUBITS
+        
+        print(f"   Measured entropy: {q_entropy:.4f} bits")
+        print(f"   Info density: {info_density:.4f} bits/qubit")
+        
+        # Information extraction ratio
+        theoretical_max = np.log2(2**NUM_QUBITS)  # 4.0 bits
+        extraction_ratio = q_entropy / theoretical_max
+        
+        print(f"   Extraction ratio: {extraction_ratio:.2%}")
+        
+        bh_results[bh_name] = {
+            'entropy': q_entropy,
+            'info_density': info_density,
+            'extraction_ratio': extraction_ratio,
+            'mass': bh_data['mass_solar'],
+            'temperature': bh_data['temperature_k'],
+            'type': bh_data['type']
+        }
+    
+    # Summary
+    print("\n" + "-"*80)
+    print("📊 BLACK HOLE INFORMATION SUMMARY")
+    print("-"*80)
+    
+    df_data = []
+    for name, data in bh_results.items():
+        df_data.append({
+            'Black Hole': name,
+            'Type': data['type'],
+            'Mass (M_sun)': f"{data['mass']:.2e}",
+            'Temp (K)': f"{data['temperature']:.2e}",
+            'Entropy (bits)': f"{data['entropy']:.4f}",
+            'Info/qubit': f"{data['info_density']:.4f}",
+            'Extraction': f"{data['extraction_ratio']:.2%}"
+        })
+    
+    df = pd.DataFrame(df_data)
+    print(df.to_string(index=False))
+    
+    # Test hypothesis: quantum > classical
+    print("\n🎯 HYPOTHESIS TEST:")
+    print(f"   Planck (quantum): {bh_results['planck_mass_bh']['info_density']:.4f} bits/qubit")
+    print(f"   Sgr A* (intermediate): {bh_results['sagittarius_a_star']['info_density']:.4f} bits/qubit")
+    print(f"   TON 618 (classical): {bh_results['ton_618']['info_density']:.4f} bits/qubit")
+    
+    if bh_results['planck_mass_bh']['info_density'] > bh_results['ton_618']['info_density']:
+        print("   ✓ CONFIRMED: Quantum BH > Classical BH")
+    else:
+        print("   ✗ REJECTED: No clear quantum/classical divide")
+    
+    return bh_results
+
+# ================================================================================
+# TEST 3: CRITICAL NOISE FINE-TUNING
+# ================================================================================
+
+def test_3_critical_noise():
+    print("\n" + "="*80)
+    print("TEST 3: CRITICAL NOISE FINE-TUNING")
+    print("="*80)
+    print(f"Testing {len(CRITICAL_TEST_PARTICLES)} particles × {len(FINE_NOISE_SWEEP)} noise points")
+    print(f"Noise range: σ ∈ [{FINE_NOISE_SWEEP[0]:.3f}, {FINE_NOISE_SWEEP[-1]:.3f}]")
+    print("Hypothesis: Each particle has unique critical σ_c for max info extraction")
+    print("-"*80 + "\n")
+    
+    noise_results = {}
+    
+    for particle_name in CRITICAL_TEST_PARTICLES:
+        print(f"\n⚛️  Testing particle: {particle_name}")
+        particle_data = PARTICLE_ENDPOINTS[particle_name]
+        print(f"   Type: {particle_data['type']}, Mass: {particle_data['mass']:.2e} eV")
+        
+        entropies = []
+        
+        for sigma in FINE_NOISE_SWEEP:
+            qc = create_particle_circuit(particle_name, particle_data, NUM_QUBITS, sigma)
+            qc_trans = transpile(qc, backend=backend, optimization_level=2)
+            
+            job = backend.run(qc_trans, shots=NUM_SHOTS)
+            print(f"   σ={sigma:.3f}: ", end="", flush=True)
+            
+            result = job.result()
+            counts = result.get_counts()
+            
+            q_entropy = quantum_entropy(counts, NUM_QUBITS)
+            entropies.append(q_entropy)
+            print(f"H={q_entropy:.4f} bits")
+        
+        noise_results[particle_name] = {
+            'noise_values': FINE_NOISE_SWEEP.tolist(),
+            'entropies': entropies,
+            'particle_data': particle_data
+        }
+        
+        # Find critical noise
+        max_idx = np.argmax(entropies)
+        sigma_c = FINE_NOISE_SWEEP[max_idx]
+        max_entropy = entropies[max_idx]
+        
+        print(f"   🎯 Critical σ_c = {sigma_c:.3f}, H_max = {max_entropy:.4f} bits")
+        
+        noise_results[particle_name]['sigma_c'] = sigma_c
+        noise_results[particle_name]['H_max'] = max_entropy
+    
+    # Summary
+    print("\n" + "-"*80)
+    print("📊 CRITICAL NOISE SUMMARY")
+    print("-"*80)
+    
+    for particle, data in noise_results.items():
+        print(f"\n{particle}:")
+        print(f"  Type: {data['particle_data']['type']}")
+        print(f"  Mass: {data['particle_data']['mass']:.2e} eV")
+        print(f"  Critical σ_c: {data['sigma_c']:.3f}")
+        print(f"  Max entropy: {data['H_max']:.4f} bits")
+        print(f"  Entropy range: [{min(data['entropies']):.4f}, {max(data['entropies']):.4f}]")
+    
+    # Test for mass scaling
+    print("\n🎯 MASS SCALING ANALYSIS:")
+    masses = [noise_results[p]['particle_data']['mass'] for p in CRITICAL_TEST_PARTICLES]
+    sigmas = [noise_results[p]['sigma_c'] for p in CRITICAL_TEST_PARTICLES]
+    
+    # Log-log correlation
+    log_masses = np.log10(np.array(masses) + 1)
+    correlation, p_value = pearsonr(log_masses, sigmas)
+    
+    print(f"   Correlation(log(mass), σ_c): r={correlation:.3f}, p={p_value:.4f}")
+    if abs(correlation) > 0.5 and p_value < 0.05:
+        print(f"   ✓ SIGNIFICANT: σ_c scales with mass")
+    else:
+        print(f"   ⚠ WEAK: No clear mass scaling")
+    
+    for i, particle in enumerate(CRITICAL_TEST_PARTICLES):
+        print(f"   {particle:20s}: mass={masses[i]:.2e} eV, σ_c={sigmas[i]:.3f}")
+    
+    # Save detailed data
+    with open('critical_noise_curves.json', 'w') as f:
+        json.dump(noise_results, f, indent=2)
+    print("\n✓ Saved: critical_noise_curves.json")
+    
+    return noise_results
+
+# ================================================================================
+# MAIN
+# ================================================================================
+
+def run_all_tests():
+    print("\n🚀 Starting focused test suite...\n")
+    
+    start_time = time.time()
+    
+    # Run tests
+    test1_results = test_1_prng_coupling()
+    test2_results = test_2_black_hole_info()
+    test3_results = test_3_critical_noise()
+    
+    elapsed = time.time() - start_time
+    
+    # Final summary
+    print("\n" + "="*80)
+    print("✅ ALL TESTS COMPLETE")
+    print("="*80)
+    print(f"Total time: {elapsed/60:.1f} minutes")
+    print(f"Circuits executed: {len(SELECTED_PRNGS)*len(TEST_PARTICLES) + len(TEST_BLACK_HOLES) + len(CRITICAL_TEST_PARTICLES)*len(FINE_NOISE_SWEEP)}")
+    
+    print("\n🔬 KEY FINDINGS:")
+    
+    # Test 1 insight
+    print("\n1. PRNG-Particle Coupling:")
+    for particle in TEST_PARTICLES:
+        best = max(test1_results[particle].items(), key=lambda x: x[1])
+        print(f"   {particle}: couples best with {best[0]} ({best[1]:.3f})")
+    
+    # Test 2 insight
+    print("\n2. Black Hole Information:")
+    bh_sorted = sorted(test2_results.items(), key=lambda x: x[1]['info_density'], reverse=True)
+    for bh_name, data in bh_sorted:
+        print(f"   {bh_name}: {data['info_density']:.4f} bits/qubit ({data['type']})")
+    
+    # Test 3 insight
+    print("\n3. Critical Noise:")
+    for particle in CRITICAL_TEST_PARTICLES:
+        sigma_c = test3_results[particle]['sigma_c']
+        H_max = test3_results[particle]['H_max']
+        print(f"   {particle}: σ_c={sigma_c:.3f}, H_max={H_max:.4f} bits")
+    
+    print("\n" + "="*80)
+    
+    # Save summary
+    summary = {
+        'test1_prng_coupling': test1_results,
+        'test2_black_hole_info': {k: {
+            'entropy': v['entropy'],
+            'info_density': v['info_density'],
+            'extraction_ratio': v['extraction_ratio']
+        } for k, v in test2_results.items()},
+        'test3_critical_noise': {k: {
+            'sigma_c': v['sigma_c'],
+            'H_max': v['H_max']
+        } for k, v in test3_results.items()},
+        'metadata': {
+            'backend': backend_name,
+            'shots': NUM_SHOTS,
+            'qubits': NUM_QUBITS,
+            'elapsed_minutes': elapsed/60
+        }
+    }
+    
+    with open('quantum_foam_focused_tests.json', 'w') as f:
+        json.dump(summary, f, indent=2)
+    
+    print("✓ Saved: quantum_foam_focused_tests.json\n")
+    
+    return test1_results, test2_results, test3_results
+
+if __name__ == "__main__":
+    try:
+        results = run_all_tests()
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
