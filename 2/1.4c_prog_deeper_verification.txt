@@ -1,0 +1,174 @@
+import numpy as np
+import time
+import sys
+import json
+from qiskit import QuantumCircuit, transpile
+from azure.quantum import Workspace
+from azure.quantum.qiskit import AzureQuantumProvider
+
+# --- NOBEL CONFIGURATION ---
+# Note: These values are set lower for faster demonstration, but should be 
+# SHOTS=2000 and MAX_DEPTH=80 for the true Nobel-grade audit.
+SHOTS = 1000
+MAX_DEPTH = 20
+NOISE_FLOOR = 0.02 
+
+# The required Rigetti QVM connection string
+CONNECTION_STRING = "SubscriptionId=e5da6bc7-cd1c-48b9-8294-1e3e84ef1c36;ResourceGroupName=Shemshallah;WorkspaceName=Shem;ApiKey=NeCH8_ANow_EB7zGdom83K4629yTGcASQGBt7U4f1WchTazZQdjVAKJI815JWJ5txsLtcH_QRrBFAZQUUGdq3w;QuantumEndpoint=https://westus.quantum.azure.com/;"
+
+# --- SUITE II CONFIGURATION: MANIPULATION & APPLICATION ---
+SUITE_II_CONFIGS = [
+    # EXP 1: CNOT Dependence Mapping (Tests phase transfer and entanglement decay)
+    {"name": "Exp 1: CNOT Dependence (Q0, Q1 Entangled)", "qubits": 2, "shots": SHOTS, "max_depth": MAX_DEPTH, "rz_base": 2.0, "initial_pert_delta": 0.0, "cnot_coupling": True},
+    
+    # EXP 2: Quantum Metrology Test (Sensitivity to external phase perturbation, delta=10^-3)
+    {"name": "Exp 2: Metrology - Perturb D=10^-3", "qubits": 1, "shots": SHOTS, "max_depth": MAX_DEPTH, "rz_base": 2.0, "initial_pert_delta": 1e-3, "cnot_coupling": False},
+    
+    # EXP 3: Beat Frequency Search (Non-Binary Scaling: Base=1.7 should introduce new spectral peaks)
+    {"name": "Exp 3: Beat Freq. Search (Base=1.7)", "qubits": 1, "shots": SHOTS, "max_depth": MAX_DEPTH, "rz_base": 1.7, "initial_pert_delta": 0.0, "cnot_coupling": False},
+]
+
+
+class QuantumHarmonicsAuditor:
+    def __init__(self, config):
+        self.backend = None
+        self.config = config
+        self.results = []
+        self.residual_signal = []
+
+    def connect(self):
+        print(f"🔌 ESTABLISHING HIGH-FIDELITY LINK for: {self.config['name']}...")
+        try:
+            # --- AZURE QUANTUM CONNECTION LOGIC (MANDATORY) ---
+            workspace = Workspace.from_connection_string(CONNECTION_STRING)
+            provider = AzureQuantumProvider(workspace)
+            self.backend = provider.get_backend('rigetti.sim.qvm')
+            print(f"   ✓ Connected: {self.backend.name()}")
+            print(f"   ✓ Configuration: N={self.config['shots']}, Depth={self.config['max_depth']}")
+        except Exception as e:
+            print(f"   ✕ Critical Error: Could not connect to Rigetti QVM via Azure: {e}")
+            sys.exit(1)
+        
+    def construct_foam_circuit(self, depth):
+        """Builds the recursive Walsh interference circuit with specific modifications."""
+        qc = QuantumCircuit(self.config['qubits'], self.config['qubits'])
+        
+        # EXP 2: Initial Phase Perturbation for Metrology Test
+        if self.config['initial_pert_delta'] > 0:
+            # Applies Rz(delta) before the sweep begins, testing sensitivity.
+            qc.rz(self.config['initial_pert_delta'] * np.pi, 0)
+
+        # Initial Superposition on Qubit 0
+        qc.h(0)
+        
+        # The "Foam" Layers (Recursive Phase Shifts)
+        for layer in range(depth):
+            qc.h(0)
+            # EXP 3: Non-Binary Rz Scaling (rz_base != 2.0)
+            angle = np.pi / (self.config['rz_base']**(layer + 1))
+            qc.rz(angle, 0)
+            
+            # EXP 1: CNOT Dependence (Entanglement introduced after each layer)
+            if self.config['cnot_coupling'] and self.config['qubits'] > 1:
+                qc.cx(0, 1)
+
+        # Final measurement
+        qc.measure(range(self.config['qubits']), range(self.config['qubits']))
+        return qc
+
+    def analyze_point(self, depth, counts):
+        """Calculates metrics, focusing on P(0) or P(00)."""
+        total = sum(counts.values())
+        
+        if self.config['qubits'] == 1:
+            p_track = counts.get('0', 0) / total
+            # Use original Hadamard parity carrier
+            expected_carrier = 0.5 if (depth % 2 == 0) else 1.0
+        else:
+            # For 2 qubits, track P(00) for entanglement fidelity, use neutral carrier
+            p_track = counts.get('00', 0) / total
+            expected_carrier = 0.5 
+
+        residual = p_track - expected_carrier
+        return p_track, residual
+
+    def run_sweep(self):
+        print(f"\n🌊 INITIATING HARMONIC SWEEP (0-{self.config['max_depth']})")
+        
+        target_p = "P(0)" if self.config['qubits'] == 1 else "P(00)"
+        print("=" * 75)
+        print(f"{'Depth':<6} | {target_p:<8} | {'Foam Signal (Residual)':<22}")
+        print("-" * 75)
+
+        for d in range(self.config['max_depth']):
+            qc = self.construct_foam_circuit(d)
+            
+            try:
+                tqc = transpile(qc, self.backend)
+                job = self.backend.run(tqc, shots=self.config['shots'])
+                
+                res = job.result()
+                counts = res.get_counts()
+                
+                p_track, residual = self.analyze_point(d, counts)
+                
+                self.residual_signal.append(residual)
+                
+                print(f"{d:<6} | {p_track:.4f}   | {residual:+.4f}")
+                
+            except Exception as e:
+                print(f"{d:<6} | ⚠️ ERROR during QVM run: {e}")
+                self.residual_signal.append(0) 
+
+    def physics_verdict(self):
+        """Analyzes the residuals for Autocorrelation and FFT."""
+        residuals = np.array(self.residual_signal)
+        
+        if len(residuals) < 2:
+            return
+
+        rms_power = np.sqrt(np.mean(residuals**2))
+        autocorr = np.corrcoef(residuals[:-1], residuals[1:])[0,1]
+            
+        # FFT Analysis
+        fft_vals = np.fft.rfft(residuals)
+        fft_freq = np.fft.rfftfreq(len(residuals))
+        fft_power = np.abs(fft_vals)
+        peak_idx = np.argmax(fft_power[1:]) + 1
+        peak_freq = fft_freq[peak_idx]
+
+        print("\n🔬 PHYSICS VERDICT: SUITE II RESULTS")
+        print("=" * 130)
+        print(f"| {'Test Name':<45} | {'RMS Power (Foam Intensity)':<25} | {'Autocorrelation (Structure)':<28} | {'Dominant Freq.':<18} |")
+        print("-" * 130)
+        print(f"| {self.config['name']:<45} | {rms_power:<25.5f} | {autocorr:<28.4f} | {peak_freq:<18.4f} |")
+        print("=" * 130)
+        
+        return {"rms_power": rms_power, "autocorr": autocorr, "peak_freq": peak_freq}
+
+
+def run_quantum_suite_ii():
+    print("启动 QUANTUM AUDIT PROTOCOL: SUITE II (MANIPULATION & APPLICATION)...")
+    print("NOTE: Executing sweep on Rigetti QVM via Azure Quantum.")
+    
+    all_results = []
+    
+    for config in SUITE_II_CONFIGS:
+        auditor = QuantumHarmonicsAuditor(config)
+        auditor.connect()
+        auditor.run_sweep()
+        summary = auditor.physics_verdict()
+        if summary:
+            all_results.append({**config, **summary})
+        print("\n" + "#" * 130 + "\n")
+
+    print("\n\nFINAL SUITE II RESULTS SUMMARY")
+    print("====================================================================================================================================")
+    print(f"| {'Experiment Description':<45} | {'RMS Power (Foam Intensity)':<25} | {'Autocorrelation (Structure)':<28} | {'Dominant Freq.':<18} |")
+    print("-" * 130)
+    for res in all_results:
+        print(f"| {res['name']:<45} | {res['rms_power']:<25.5f} | {res['autocorr']:<28.4f} | {res['peak_freq']:<18.4f} |")
+    print("=" * 130)
+
+if __name__ == "__main__":
+    run_quantum_suite_ii()

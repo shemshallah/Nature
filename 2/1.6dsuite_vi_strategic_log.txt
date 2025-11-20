@@ -1,0 +1,837 @@
+[15:44:45.116] ================================================================================
+[15:44:45.122] SUITE VI: STRATEGIC QUANTUM FOAM VALIDATION
+[15:44:45.126] ================================================================================
+[15:44:45.129] Total budget: 60 circuits
+[15:44:45.132] Shots per circuit: 2048
+[15:44:45.135] Estimated runtime: ~15 minutes
+[15:44:45.138] 
+[15:44:45.141] ================================================================================
+[15:44:45.144] CONNECTING TO AZURE QUANTUM
+[15:44:45.148] ================================================================================
+[15:44:45.232] ✓ Provider connected
+[15:44:46.465] ✗ Connection failed: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+[15:44:46.472] Traceback (most recent call last):
+  File "/tmp/ipykernel_5423/1344954890.py", line 86, in connect_azure
+    backend = provider.get_backend("rigetti.sim.qvm")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 71, in get_backend
+    backends = self.backends(name=name, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 109, in backends
+    allowed_targets = self._get_allowed_targets_from_workspace(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 165, in _get_allowed_targets_from_workspace
+    target_statuses = self._workspace._get_target_status(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in _get_target_status
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in <listcomp>
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 136, in __next__
+    return next(self._page_iterator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 82, in __next__
+    self._response = self._get_next(self.continuation_token)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_client/operations/_operations.py", line 1832, in get_next
+    pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 242, in run
+    return first_node.send(pipeline_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 2 more times]
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_redirect.py", line 205, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_retry.py", line 545, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 159, in send
+    self.on_request(request)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 134, in on_request
+    self._request_token(*self._scopes)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 110, in _request_token
+    self._token = self._get_token(*scopes, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 100, in _get_token
+    return cast(SupportsTokenInfo, self._credential).get_token_info(*scopes, options=options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/default.py", line 375, in get_token_info
+    token_info = cast(SupportsTokenInfo, super()).get_token_info(*scopes, options=options)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/chained.py", line 225, in get_token_info
+    raise ClientAuthenticationError(message=message)
+azure.core.exceptions.ClientAuthenticationError: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+
+[15:44:46.475] 
+✗ ERROR: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+[15:44:46.480] Traceback (most recent call last):
+  File "/tmp/ipykernel_5423/1344954890.py", line 519, in main
+    backend = connect_azure()
+              ^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_5423/1344954890.py", line 86, in connect_azure
+    backend = provider.get_backend("rigetti.sim.qvm")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 71, in get_backend
+    backends = self.backends(name=name, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 109, in backends
+    allowed_targets = self._get_allowed_targets_from_workspace(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 165, in _get_allowed_targets_from_workspace
+    target_statuses = self._workspace._get_target_status(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in _get_target_status
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in <listcomp>
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 136, in __next__
+    return next(self._page_iterator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 82, in __next__
+    self._response = self._get_next(self.continuation_token)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_client/operations/_operations.py", line 1832, in get_next
+    pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 242, in run
+    return first_node.send(pipeline_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 2 more times]
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_redirect.py", line 205, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_retry.py", line 545, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 159, in send
+    self.on_request(request)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 134, in on_request
+    self._request_token(*self._scopes)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 110, in _request_token
+    self._token = self._get_token(*scopes, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 100, in _get_token
+    return cast(SupportsTokenInfo, self._credential).get_token_info(*scopes, options=options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/default.py", line 375, in get_token_info
+    token_info = cast(SupportsTokenInfo, super()).get_token_info(*scopes, options=options)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/chained.py", line 225, in get_token_info
+    raise ClientAuthenticationError(message=message)
+azure.core.exceptions.ClientAuthenticationError: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+
+[15:44:46.488] Checkpoint saved: 0 circuits
+[15:48:24.767] ================================================================================
+[15:48:24.771] SUITE VI: STRATEGIC QUANTUM FOAM VALIDATION
+[15:48:24.775] ================================================================================
+[15:48:24.778] Total budget: 60 circuits
+[15:48:24.782] Shots per circuit: 2048
+[15:48:24.785] Estimated runtime: ~15 minutes
+[15:48:24.788] 
+[15:48:24.792] ================================================================================
+[15:48:24.795] CONNECTING TO AZURE QUANTUM
+[15:48:24.798] ================================================================================
+[15:48:24.805] ✓ Workspace connected
+[15:48:24.809] ✓ Provider initialized
+[15:48:26.050] ✗ Connection failed: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+[15:48:26.056] Traceback (most recent call last):
+  File "/tmp/ipykernel_5501/2609626617.py", line 91, in connect_azure
+    backend = provider.get_backend("rigetti.sim.qvm")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 71, in get_backend
+    backends = self.backends(name=name, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 109, in backends
+    allowed_targets = self._get_allowed_targets_from_workspace(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 165, in _get_allowed_targets_from_workspace
+    target_statuses = self._workspace._get_target_status(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in _get_target_status
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in <listcomp>
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 136, in __next__
+    return next(self._page_iterator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 82, in __next__
+    self._response = self._get_next(self.continuation_token)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_client/operations/_operations.py", line 1832, in get_next
+    pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 242, in run
+    return first_node.send(pipeline_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 2 more times]
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_redirect.py", line 205, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_retry.py", line 545, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 159, in send
+    self.on_request(request)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 134, in on_request
+    self._request_token(*self._scopes)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 110, in _request_token
+    self._token = self._get_token(*scopes, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 100, in _get_token
+    return cast(SupportsTokenInfo, self._credential).get_token_info(*scopes, options=options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/default.py", line 375, in get_token_info
+    token_info = cast(SupportsTokenInfo, super()).get_token_info(*scopes, options=options)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/chained.py", line 225, in get_token_info
+    raise ClientAuthenticationError(message=message)
+azure.core.exceptions.ClientAuthenticationError: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+
+[15:48:26.060] 
+✗ ERROR: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+[15:48:26.065] Traceback (most recent call last):
+  File "/tmp/ipykernel_5501/2609626617.py", line 528, in main
+    backend = connect_azure()
+              ^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_5501/2609626617.py", line 91, in connect_azure
+    backend = provider.get_backend("rigetti.sim.qvm")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 71, in get_backend
+    backends = self.backends(name=name, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 109, in backends
+    allowed_targets = self._get_allowed_targets_from_workspace(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/qiskit/provider.py", line 165, in _get_allowed_targets_from_workspace
+    target_statuses = self._workspace._get_target_status(name, provider_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in _get_target_status
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 534, in <listcomp>
+    return [
+           ^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 136, in __next__
+    return next(self._page_iterator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/paging.py", line 82, in __next__
+    self._response = self._get_next(self.continuation_token)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_client/operations/_operations.py", line 1832, in get_next
+    pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 242, in run
+    return first_node.send(pipeline_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/_base.py", line 98, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 2 more times]
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_redirect.py", line 205, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_retry.py", line 545, in send
+    response = self.next.send(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 159, in send
+    self.on_request(request)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 134, in on_request
+    self._request_token(*self._scopes)
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 110, in _request_token
+    self._token = self._get_token(*scopes, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/core/pipeline/policies/_authentication.py", line 100, in _get_token
+    return cast(SupportsTokenInfo, self._credential).get_token_info(*scopes, options=options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/default.py", line 375, in get_token_info
+    token_info = cast(SupportsTokenInfo, super()).get_token_info(*scopes, options=options)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/identity/_credentials/chained.py", line 225, in get_token_info
+    raise ClientAuthenticationError(message=message)
+azure.core.exceptions.ClientAuthenticationError: DefaultAzureCredential failed to retrieve a token from the included credentials.
+Attempted credentials:
+	EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+	WorkloadIdentityCredential: WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information: https://aka.ms/azsdk/python/identity/workloadidentitycredential/troubleshoot. Missing required arguments: 'tenant_id', 'client_id', 'token_file_path'.
+	ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable, no response from the IMDS endpoint.
+	SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+	VisualStudioCodeCredential: VisualStudioCodeCredential requires the 'azure-identity-broker' package to be installed. You must also ensure you have the Azure Resources extension installed and have signed in to Azure via Visual Studio Code.
+	AzureCliCredential: Azure CLI not found on path
+	AzurePowerShellCredential: PowerShell is not installed
+	AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+	InteractiveBrowserCredential: Failed to open a browser
+	BrokerCredential: InteractiveBrowserBrokerCredential unavailable. The 'azure-identity-broker' package is required to use brokered authentication.
+To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+
+[15:48:26.074] Checkpoint saved: 0 circuits
+[15:57:39.434] ================================================================================
+[15:57:39.438] SUITE VI: STRATEGIC QUANTUM FOAM VALIDATION
+[15:57:39.441] ================================================================================
+[15:57:39.444] Total budget: 60 circuits
+[15:57:39.447] Shots per circuit: 2048
+[15:57:39.450] Estimated runtime: ~15 minutes
+[15:57:39.454] 
+[15:57:39.457] ================================================================================
+[15:57:39.460] CONNECTING TO AZURE QUANTUM
+[15:57:39.463] ================================================================================
+[15:57:39.466] ✗ Connection failed: Invalid connection string
+[15:57:39.470] Traceback (most recent call last):
+  File "/tmp/ipykernel_5573/2083162283.py", line 83, in connect_azure
+    workspace = Workspace(connection_string=connection_string)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 125, in __init__
+    connection_params = WorkspaceConnectionParams(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 94, in __init__
+    self.apply_connection_string(connection_string)
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 236, in apply_connection_string
+    raise ValueError("Invalid connection string")
+ValueError: Invalid connection string
+
+[15:57:39.473] 
+✗ ERROR: Invalid connection string
+[15:57:39.476] Traceback (most recent call last):
+  File "/tmp/ipykernel_5573/2083162283.py", line 519, in main
+    backend = connect_azure()
+              ^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_5573/2083162283.py", line 83, in connect_azure
+    workspace = Workspace(connection_string=connection_string)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 125, in __init__
+    connection_params = WorkspaceConnectionParams(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 94, in __init__
+    self.apply_connection_string(connection_string)
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 236, in apply_connection_string
+    raise ValueError("Invalid connection string")
+ValueError: Invalid connection string
+
+[15:57:39.485] Checkpoint saved: 0 circuits
+[16:04:17.323] ================================================================================
+[16:04:17.327] SUITE VI: STRATEGIC QUANTUM FOAM VALIDATION
+[16:04:17.330] ================================================================================
+[16:04:17.333] Total budget: 60 circuits
+[16:04:17.337] Shots per circuit: 2048
+[16:04:17.340] Estimated runtime: ~15 minutes
+[16:04:17.343] 
+[16:04:17.346] ================================================================================
+[16:04:17.349] CONNECTING TO AZURE QUANTUM
+[16:04:17.352] ================================================================================
+[16:04:17.355] ✗ Connection failed: Invalid connection string
+[16:04:17.359] Traceback (most recent call last):
+  File "/tmp/ipykernel_5662/1935739072.py", line 83, in connect_azure
+    workspace = Workspace(connection_string=connection_string)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 125, in __init__
+    connection_params = WorkspaceConnectionParams(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 94, in __init__
+    self.apply_connection_string(connection_string)
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 236, in apply_connection_string
+    raise ValueError("Invalid connection string")
+ValueError: Invalid connection string
+
+[16:04:17.362] 
+✗ ERROR: Invalid connection string
+[16:04:17.365] Traceback (most recent call last):
+  File "/tmp/ipykernel_5662/1935739072.py", line 518, in main
+    backend = connect_azure()
+              ^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_5662/1935739072.py", line 83, in connect_azure
+    workspace = Workspace(connection_string=connection_string)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 125, in __init__
+    connection_params = WorkspaceConnectionParams(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 94, in __init__
+    self.apply_connection_string(connection_string)
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 236, in apply_connection_string
+    raise ValueError("Invalid connection string")
+ValueError: Invalid connection string
+
+[16:04:17.373] Checkpoint saved: 0 circuits
+[16:11:34.268] ================================================================================
+[16:11:34.271] SUITE VI: STRATEGIC QUANTUM FOAM VALIDATION
+[16:11:34.274] ================================================================================
+[16:11:34.277] Total budget: 60 circuits
+[16:11:34.281] Shots per circuit: 2048
+[16:11:34.284] Estimated runtime: ~15 minutes
+[16:11:34.287] 
+[16:11:34.291] ================================================================================
+[16:11:34.294] CONNECTING TO AZURE QUANTUM
+[16:11:34.296] ================================================================================
+[16:11:34.299] ✗ Connection failed: Invalid connection string
+[16:11:34.303] Traceback (most recent call last):
+  File "/tmp/ipykernel_5792/2431929269.py", line 84, in connect_azure
+    workspace = Workspace(connection_string=connection_string)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 125, in __init__
+    connection_params = WorkspaceConnectionParams(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 94, in __init__
+    self.apply_connection_string(connection_string)
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 236, in apply_connection_string
+    raise ValueError("Invalid connection string")
+ValueError: Invalid connection string
+
+[16:11:34.307] 
+✗ ERROR: Invalid connection string
+[16:11:34.310] Traceback (most recent call last):
+  File "/tmp/ipykernel_5792/2431929269.py", line 520, in main
+    backend = connect_azure()
+              ^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_5792/2431929269.py", line 84, in connect_azure
+    workspace = Workspace(connection_string=connection_string)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/workspace.py", line 125, in __init__
+    connection_params = WorkspaceConnectionParams(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 94, in __init__
+    self.apply_connection_string(connection_string)
+  File "/opt/conda/lib/python3.11/site-packages/azure/quantum/_workspace_connection_params.py", line 236, in apply_connection_string
+    raise ValueError("Invalid connection string")
+ValueError: Invalid connection string
+
+[16:11:34.318] Checkpoint saved: 0 circuits
+[16:27:54.746] ================================================================================
+[16:27:54.751] SUITE VI: STRATEGIC QUANTUM FOAM VALIDATION
+[16:27:54.754] ================================================================================
+[16:27:54.757] Total budget: 60 circuits
+[16:27:54.761] Shots per circuit: 2048
+[16:27:54.764] Estimated runtime: ~15 minutes
+[16:27:54.767] 
+[16:27:54.770] ================================================================================
+[16:27:54.774] CONNECTING TO AZURE QUANTUM
+[16:27:54.777] ================================================================================
+[16:27:54.780] Connecting to Azure Quantum...
+[16:27:56.028] ✓ Connected: Shem
+[16:27:56.033] ✓ Backend: rigetti.sim.qvm
+[16:27:56.036] 
+================================================================================
+[16:27:56.042] EXPERIMENT 6A: PHASE SENSITIVITY
+[16:27:56.046] Budget: 12 circuits
+[16:27:56.049] ================================================================================
+[16:27:56.052] 
+Building reference circuit (depth=20)...
+[16:27:56.058] Transpiling reference circuit...
+[16:27:56.247] Executing reference... (1/7)
+[16:27:58.684] [BUDGET: 1/60, 59 remaining]
+[16:28:10.960] ✓ Reference P(00) = 0.257324
+[16:28:10.966] 
+Perturbation δφ = 1.00e-06 rad (2/7)...
+[16:28:10.971] Transpiling perturbed circuit...
+[16:28:12.996] [BUDGET: 2/60, 58 remaining]
+[16:28:21.617]   P(00) = 0.246582, ΔP = 1.074219e-02, dP/dφ = 1.0742e+04
+[16:28:21.623] 
+Perturbation δφ = 1.00e-05 rad (3/7)...
+[16:28:21.628] Transpiling perturbed circuit...
+[16:28:22.960] [BUDGET: 3/60, 57 remaining]
+[16:28:31.319]   P(00) = 0.245117, ΔP = 1.220703e-02, dP/dφ = 1.2207e+03
+[16:28:31.323] 
+Perturbation δφ = 1.00e-04 rad (4/7)...
+[16:28:31.328] Transpiling perturbed circuit...
+[16:28:33.058] [BUDGET: 4/60, 56 remaining]
+[16:28:44.613]   P(00) = 0.249512, ΔP = 7.812500e-03, dP/dφ = 7.8125e+01
+[16:28:44.619] 
+Perturbation δφ = 1.00e-03 rad (5/7)...
+[16:28:44.623] Transpiling perturbed circuit...
+[16:28:46.243] [BUDGET: 5/60, 55 remaining]
+[16:28:54.450]   P(00) = 0.253906, ΔP = 3.417969e-03, dP/dφ = 3.4180e+00
+[16:28:54.454] 
+Perturbation δφ = 1.00e-02 rad (6/7)...
+[16:28:54.459] Transpiling perturbed circuit...
+[16:28:55.758] [BUDGET: 6/60, 54 remaining]
+[16:29:04.110]   P(00) = 0.231445, ΔP = 2.587891e-02, dP/dφ = 2.5879e+00
+[16:29:04.116] 
+Perturbation δφ = 5.00e-02 rad (7/7)...
+[16:29:04.121] Transpiling perturbed circuit...
+[16:29:05.764] [BUDGET: 7/60, 53 remaining]
+[16:29:14.097]   P(00) = 0.259766, ΔP = 2.441406e-03, dP/dφ = 4.8828e-02
+[16:29:14.102] 
+------------------------------------------------------------
+[16:29:14.106] SCALING ANALYSIS
+[16:29:14.109] ------------------------------------------------------------
+[16:29:14.113] Power law: dP/dφ ∝ δφ^-1.071
+[16:29:14.117]   Shot-noise: α = -0.5
+[16:29:14.120]   Heisenberg: α = -1.0
+[16:29:14.124]   Measured: α = -1.071
+[16:29:14.127] *** SUB-HEISENBERG SCALING DETECTED ***
+[16:29:14.136] Checkpoint saved: 7 circuits
+[16:29:14.140] 
+================================================================================
+[16:29:14.143] EXPERIMENT 6B: CRITICAL EXPONENTS
+[16:29:14.147] Budget: 16 circuits
+[16:29:14.150] ================================================================================
+[16:29:14.154] Critical point: NF_c = 0.0203
+[16:29:14.157] 
+NF = 0.0150 (1/16)...
+[16:29:14.162] Transpiling circuit...
+[16:29:15.613] [BUDGET: 8/60, 52 remaining]
+[16:29:23.606]   Coherence = 0.041659, t = -0.261084
+[16:29:23.611] 
+NF = 0.0160 (2/16)...
+[16:29:23.616] Transpiling circuit...
+[16:29:25.307] [BUDGET: 9/60, 51 remaining]
+[16:29:33.655]   Coherence = 0.035648, t = -0.211823
+[16:29:33.659] 
+NF = 0.0170 (3/16)...
+[16:29:33.663] Transpiling circuit...
+[16:29:35.022] [BUDGET: 10/60, 50 remaining]
+[16:29:43.092]   Coherence = 0.032359, t = -0.162562
+[16:29:43.097] 
+NF = 0.0180 (4/16)...
+[16:29:43.103] Transpiling circuit...
+[16:29:44.554] [BUDGET: 11/60, 49 remaining]
+[16:29:52.941]   Coherence = 0.030020, t = -0.113300
+[16:29:52.947] 
+NF = 0.0190 (5/16)...
+[16:29:52.952] Transpiling circuit...
+[16:29:54.292] [BUDGET: 12/60, 48 remaining]
+[16:30:02.626]   Coherence = 0.027387, t = -0.064039
+[16:30:02.631] 
+NF = 0.0200 (6/16)...
+[16:30:02.636] Transpiling circuit...
+[16:30:04.167] [BUDGET: 13/60, 47 remaining]
+[16:30:12.415]   Coherence = 0.025036, t = -0.014778
+[16:30:12.421] 
+NF = 0.0210 (7/16)...
+[16:30:12.426] Transpiling circuit...
+[16:30:13.749] [BUDGET: 14/60, 46 remaining]
+[16:30:25.304]   Coherence = 0.017435, t = +0.034483
+[16:30:25.308] 
+NF = 0.0220 (8/16)...
+[16:30:25.313] Transpiling circuit...
+[16:30:26.969] [BUDGET: 15/60, 45 remaining]
+[16:30:38.500]   Coherence = 0.011262, t = +0.083744
+[16:30:38.506] 
+NF = 0.0230 (9/16)...
+[16:30:38.511] Transpiling circuit...
+[16:30:40.056] [BUDGET: 16/60, 44 remaining]
+[16:30:48.254]   Coherence = 0.018413, t = +0.133005
+[16:30:48.259] 
+NF = 0.0240 (10/16)...
+[16:30:48.264] Transpiling circuit...
+[16:30:49.696] [BUDGET: 17/60, 43 remaining]
+[16:31:01.385]   Coherence = 0.030004, t = +0.182266
+[16:31:01.389] 
+NF = 0.0250 (11/16)...
+[16:31:01.394] Transpiling circuit...
+[16:31:03.214] [BUDGET: 18/60, 42 remaining]
+[16:31:11.240]   Coherence = 0.025183, t = +0.231527
+[16:31:11.246] 
+NF = 0.0260 (12/16)...
+[16:31:11.251] Transpiling circuit...
+[16:31:12.847] [BUDGET: 19/60, 41 remaining]
+[16:31:20.814]   Coherence = 0.031576, t = +0.280788
+[16:31:20.818] 
+NF = 0.0270 (13/16)...
+[16:31:20.822] Transpiling circuit...
+[16:31:22.983] [BUDGET: 20/60, 40 remaining]
+[16:31:31.309]   Coherence = 0.027742, t = +0.330049
+[16:31:31.315] 
+NF = 0.0280 (14/16)...
+[16:31:31.320] Transpiling circuit...
+[16:31:32.860] [BUDGET: 21/60, 39 remaining]
+[16:31:41.161]   Coherence = 0.032835, t = +0.379310
+[16:31:41.167] 
+NF = 0.0290 (15/16)...
+[16:31:41.172] Transpiling circuit...
+[16:31:43.089] [BUDGET: 22/60, 38 remaining]
+[16:31:51.255]   Coherence = 0.034884, t = +0.428571
+[16:31:51.261] 
+NF = 0.0300 (16/16)...
+[16:31:51.266] Transpiling circuit...
+[16:31:52.704] [BUDGET: 23/60, 37 remaining]
+[16:32:01.062]   Coherence = 0.035801, t = +0.477833
+[16:32:01.066] 
+------------------------------------------------------------
+[16:32:01.070] CRITICAL EXPONENT EXTRACTION
+[16:32:01.072] ------------------------------------------------------------
+[16:32:01.076] β = 0.3749, R² = 0.6804
+[16:32:01.080] 
+[16:32:01.083] Reference:
+[16:32:01.086]   3D Ising: β = 0.326
+[16:32:01.089]   Mean field: β = 0.5
+[16:32:01.099] Checkpoint saved: 23 circuits
+[16:32:01.102] 
+================================================================================
+[16:32:01.106] EXPERIMENT 6C: SPECTRAL ANALYSIS
+[16:32:01.109] Budget: 20 circuits
+[16:32:01.112] ================================================================================
+[16:32:01.116] Depth 10 (1/20)...
+[16:32:01.120] Transpiling circuit...
+[16:32:02.810] [BUDGET: 24/60, 36 remaining]
+[16:32:11.099]   P(00) = 0.312988
+[16:32:11.104] Depth 12 (2/20)...
+[16:32:11.109] Transpiling circuit...
+[16:32:12.387] [BUDGET: 25/60, 35 remaining]
+[16:32:20.425]   P(00) = 0.294434
+[16:32:20.431] Depth 14 (3/20)...
+[16:32:20.436] Transpiling circuit...
+[16:32:21.891] [BUDGET: 26/60, 34 remaining]
+[16:32:29.981]   P(00) = 0.250977
+[16:32:29.986] Depth 16 (4/20)...
+[16:32:29.991] Transpiling circuit...
+[16:32:31.566] [BUDGET: 27/60, 33 remaining]
+[16:32:39.571]   P(00) = 0.338379
+[16:32:39.577] Depth 18 (5/20)...
+[16:32:39.581] Transpiling circuit...
+[16:32:41.352] [BUDGET: 28/60, 32 remaining]
+[16:32:50.444]   P(00) = 0.308594
+[16:32:50.450] Depth 20 (6/20)...
+[16:32:50.455] Transpiling circuit...
+[16:32:51.922] [BUDGET: 29/60, 31 remaining]
+[16:33:00.544]   P(00) = 0.262695
+[16:33:00.549] Depth 22 (7/20)...
+[16:33:00.553] Transpiling circuit...
+[16:33:01.874] [BUDGET: 30/60, 30 remaining]
+[16:33:13.422]   P(00) = 0.350098
+[16:33:13.427] Depth 24 (8/20)...
+[16:33:13.432] Transpiling circuit...
+[16:33:14.935] [BUDGET: 31/60, 29 remaining]
+[16:33:22.913]   P(00) = 0.276367
+[16:33:22.918] Depth 26 (9/20)...
+[16:33:22.922] Transpiling circuit...
+[16:33:24.241] [BUDGET: 32/60, 28 remaining]
+[16:33:32.772]   P(00) = 0.239746
+[16:33:32.778] Depth 28 (10/20)...
+[16:33:32.784] Transpiling circuit...
+[16:33:34.284] [BUDGET: 33/60, 27 remaining]
+[16:33:45.711]   P(00) = 0.341309
+[16:33:45.717] Depth 30 (11/20)...
+[16:33:45.722] Transpiling circuit...
+[16:33:47.418] [BUDGET: 34/60, 26 remaining]
+[16:33:58.962]   P(00) = 0.281250
+[16:33:58.968] Depth 32 (12/20)...
+[16:33:58.973] Transpiling circuit...
+[16:34:00.633] [BUDGET: 35/60, 25 remaining]
+[16:34:09.232]   P(00) = 0.259766
+[16:34:09.237] Depth 34 (13/20)...
+[16:34:09.241] Transpiling circuit...
+[16:34:10.565] [BUDGET: 36/60, 24 remaining]
+[16:34:18.699]   P(00) = 0.348145
+[16:34:18.703] Depth 36 (14/20)...
+[16:34:18.709] Transpiling circuit...
+[16:34:20.384] [BUDGET: 37/60, 23 remaining]
+[16:34:28.421]   P(00) = 0.274902
+[16:34:28.426] Depth 38 (15/20)...
+[16:34:28.431] Transpiling circuit...
+[16:34:29.741] [BUDGET: 38/60, 22 remaining]
+[16:34:38.070]   P(00) = 0.252930
+[16:34:38.074] Depth 40 (16/20)...
+[16:34:38.079] Transpiling circuit...
+[16:34:39.657] [BUDGET: 39/60, 21 remaining]
+[16:34:51.394]   P(00) = 0.341309
+[16:34:51.398] Depth 42 (17/20)...
+[16:34:51.404] Transpiling circuit...
+[16:34:53.033] [BUDGET: 40/60, 20 remaining]
+[16:35:01.465]   P(00) = 0.293945
+[16:35:01.470] Depth 44 (18/20)...
+[16:35:01.476] Transpiling circuit...
+[16:35:03.416] [BUDGET: 41/60, 19 remaining]
+[16:35:11.925]   P(00) = 0.265137
+[16:35:11.931] Depth 46 (19/20)...
+[16:35:11.936] Transpiling circuit...
+[16:35:13.272] [BUDGET: 42/60, 18 remaining]
+[16:35:24.983]   P(00) = 0.333984
+[16:35:24.988] Depth 48 (20/20)...
+[16:35:24.994] Transpiling circuit...
+[16:35:26.426] [BUDGET: 43/60, 17 remaining]
+[16:35:34.430]   P(00) = 0.266602
+[16:35:34.436] 
+------------------------------------------------------------
+[16:35:34.440] FFT ANALYSIS
+[16:35:34.444] ------------------------------------------------------------
+[16:35:34.451] Dominant frequency: f = 0.1750 cycles/depth
+[16:35:34.455] Power: 2.03e-01
+[16:35:34.458] Theory predicts: f ≈ 0.50
+[16:35:34.467] Checkpoint saved: 43 circuits
+[16:35:34.471] 
+================================================================================
+[16:35:34.474] EXPERIMENT 6D: REPRODUCIBILITY
+[16:35:34.477] Budget: 12 circuits
+[16:35:34.481] ================================================================================
+[16:35:34.484] Running 12 identical circuits (depth=30)...
+[16:35:34.489] Transpiling circuit (once for all trials)...
+[16:35:34.558] Trial 1/12...
+[16:35:35.834] [BUDGET: 44/60, 16 remaining]
+[16:35:43.770]   P(00) = 0.284180
+[16:35:43.776] Trial 2/12...
+[16:35:45.438] [BUDGET: 45/60, 15 remaining]
+[16:35:53.695]   P(00) = 0.312500
+[16:35:53.699] Trial 3/12...
+[16:35:55.016] [BUDGET: 46/60, 14 remaining]
+[16:36:03.309]   P(00) = 0.286621
+[16:36:03.314] Trial 4/12...
+[16:36:04.817] [BUDGET: 47/60, 13 remaining]
+[16:36:12.887]   P(00) = 0.284668
+[16:36:12.893] Trial 5/12...
+[16:36:14.231] [BUDGET: 48/60, 12 remaining]
+[16:36:22.260]   P(00) = 0.289062
+[16:36:22.264] Trial 6/12...
+[16:36:23.897] [BUDGET: 49/60, 11 remaining]
+[16:36:32.650]   P(00) = 0.282227
+[16:36:32.656] Trial 7/12...
+[16:36:34.264] [BUDGET: 50/60, 10 remaining]
+[16:36:46.089]   P(00) = 0.290039
+[16:36:46.095] Trial 8/12...
+[16:36:47.595] [BUDGET: 51/60, 9 remaining]
+[16:36:55.625]   P(00) = 0.268066
+[16:36:55.630] Trial 9/12...
+[16:36:56.891] [BUDGET: 52/60, 8 remaining]
+[16:37:05.079]   P(00) = 0.287598
+[16:37:05.085] Trial 10/12...
+[16:37:06.750] [BUDGET: 53/60, 7 remaining]
+[16:37:18.542]   P(00) = 0.273438
+[16:37:18.548] Trial 11/12...
+[16:37:19.950] [BUDGET: 54/60, 6 remaining]
+[16:37:31.861]   P(00) = 0.271484
+[16:37:31.866] Trial 12/12...
+[16:37:33.566] [BUDGET: 55/60, 5 remaining]
+[16:37:41.726]   P(00) = 0.287598
+[16:37:41.732] 
+------------------------------------------------------------
+[16:37:41.735] STATISTICS
+[16:37:41.739] ------------------------------------------------------------
+[16:37:41.742] Mean: 0.284790 ± 0.003146
+[16:37:41.745] Std dev: 0.010898
+[16:37:41.748] Relative error: 1.10%
+[16:37:41.757] Checkpoint saved: 55 circuits
+[16:37:41.760] 
+================================================================================
+[16:37:41.763] SUITE VI COMPLETE
+[16:37:41.767] ================================================================================
+[16:37:41.770] Total circuits used: 55/60
+[16:37:41.773] Data saved to: suite_vi_strategic_data.json
+[16:37:41.782] Checkpoint saved: 55 circuits

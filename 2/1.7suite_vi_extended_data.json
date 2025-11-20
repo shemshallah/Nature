@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "start_time": "2025-11-20T17:03:07.565034",
+    "backend": "rigetti.sim.qvm",
+    "total_budget": 80,
+    "shots_per_circuit": 2048,
+    "foam_coupling": 0.0203,
+    "nature_validation": true,
+    "circuits_used": 61,
+    "last_update": "2025-11-20T17:14:02.806898",
+    "end_time": "2025-11-20T17:14:02.790328",
+    "nature_ready": 

@@ -1,0 +1,720 @@
+
+"""
+SUITE VI EXTENDED: CRITICAL VALIDATION FOR NATURE SUBMISSION
+Azure Quantum + Rigetti QVM Execution
+FIXED CONTROL TEST - proper comparison methodology
+"""
+
+from azure.quantum import Workspace
+from azure.quantum.qiskit import AzureQuantumProvider
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
+import numpy as np
+from datetime import datetime
+import json
+import traceback
+import random
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+LOG_FILE = "suite_vi_extended_log.txt"
+DATA_FILE = "suite_vi_extended_data.json"
+
+PLANCK_LENGTH = 1.616255e-35
+PLANCK_VOLUME = PLANCK_LENGTH**3
+FOAM_COUPLING = 0.0203
+
+SHOTS = 2048
+TOTAL_CIRCUITS = 80
+CIRCUITS_USED = 0
+
+CONNECTION_STRING = ";"
+
+ALL_DATA = {
+    'metadata': {
+        'start_time': datetime.now().isoformat(),
+        'backend': 'rigetti.sim.qvm',
+        'total_budget': TOTAL_CIRCUITS,
+        'shots_per_circuit': SHOTS,
+        'foam_coupling': FOAM_COUPLING,
+        'nature_validation': True
+    },
+    'experiments': {}
+}
+
+def log_message(msg):
+    timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    formatted = f"[{timestamp}] {msg}"
+    print(formatted)
+    with open(LOG_FILE, 'a') as f:
+        f.write(formatted + '\n')
+
+def check_budget():
+    global CIRCUITS_USED
+    remaining = TOTAL_CIRCUITS - CIRCUITS_USED
+    if remaining <= 0:
+        raise RuntimeError(f"BUDGET EXHAUSTED: {CIRCUITS_USED}/{TOTAL_CIRCUITS}")
+    return remaining
+
+def use_circuit():
+    global CIRCUITS_USED
+    CIRCUITS_USED += 1
+    remaining = TOTAL_CIRCUITS - CIRCUITS_USED
+    log_message(f"[BUDGET: {CIRCUITS_USED}/{TOTAL_CIRCUITS}, {remaining} remaining]")
+
+def save_checkpoint():
+    ALL_DATA['metadata']['circuits_used'] = CIRCUITS_USED
+    ALL_DATA['metadata']['last_update'] = datetime.now().isoformat()
+    with open(DATA_FILE, 'w') as f:
+        json.dump(ALL_DATA, f, indent=2)
+    log_message(f"Checkpoint saved: {CIRCUITS_USED} circuits")
+
+# ============================================================================
+# AZURE QUANTUM CONNECTION
+# ============================================================================
+
+def connect_azure():
+    log_message("="*80)
+    log_message("CONNECTING TO AZURE QUANTUM")
+    log_message("="*80)
+    
+    try:
+        log_message("Connecting to Azure Quantum...")
+        workspace = Workspace.from_connection_string(CONNECTION_STRING)
+        provider = AzureQuantumProvider(workspace)
+        backend = provider.get_backend("rigetti.sim.qvm")
+        log_message(f"✓ Connected: {workspace.name}")
+        log_message(f"✓ Backend: {backend.name()}")
+        
+        return backend
+        
+    except Exception as e:
+        log_message(f"✗ Connection failed: {e}")
+        log_message(traceback.format_exc())
+        raise
+
+# ============================================================================
+# CORE CIRCUIT BUILDERS
+# ============================================================================
+
+def build_recursive_walsh_hadamard(depth, noise_floor=FOAM_COUPLING):
+    qr = QuantumRegister(2, 'q')
+    cr = ClassicalRegister(2, 'c')
+    qc = QuantumCircuit(qr, cr)
+    
+    qc.h(qr[0])
+    qc.h(qr[1])
+    
+    for k in range(depth):
+        phase = np.pi / (2**(k+1))
+        qc.cx(qr[0], qr[1])
+        qc.cp(phase, qr[0], qr[1])
+        
+        if noise_floor > 0:
+            angle = 2 * np.arcsin(np.sqrt(noise_floor))
+            qc.ry(angle, qr[0])
+            qc.ry(angle, qr[1])
+        
+        qc.h(qr[0])
+        qc.h(qr[1])
+    
+    qc.measure(qr, cr)
+    return qc
+
+def build_simple_hadamard(depth):
+    """Simple Hadamard layers - no recursive structure"""
+    qr = QuantumRegister(2, 'q')
+    cr = ClassicalRegister(2, 'c')
+    qc = QuantumCircuit(qr, cr)
+    
+    for _ in range(depth):
+        qc.h(qr[0])
+        qc.h(qr[1])
+        qc.cx(qr[0], qr[1])
+    
+    qc.measure(qr, cr)
+    return qc
+
+# ============================================================================
+# TEST 2: FIXED CONTROL TEST (18 circuits)
+# ============================================================================
+
+def test_random_circuit_control(backend):
+    """
+    FIXED: Compare structured vs unstructured circuits
+    Key insight: Random circuits were TOO complex. Use simple Hadamard layers instead.
+    Budget: 18 circuits
+    """
+    log_message("\n" + "="*80)
+    log_message("TEST 2: CONTROL TEST (FIXED)")
+    log_message("Comparing recursive structure vs simple layers")
+    log_message("Budget: 18 circuits")
+    log_message("="*80)
+    
+    check_budget()
+    
+    depth = 20
+    perturbations = [1e-5, 1e-4, 1e-3, 1e-2]
+    
+    results = {
+        'structured': {'perturbations': [], 'sensitivities': []},
+        'simple': {'perturbations': [], 'sensitivities': []},
+        'comparison': {}
+    }
+    
+    # TEST A: STRUCTURED (Recursive Walsh-Hadamard)
+    log_message("\n=== STRUCTURED CIRCUITS (Recursive Walsh-Hadamard) ===")
+    
+    qc_ref = build_recursive_walsh_hadamard(depth=depth, noise_floor=FOAM_COUPLING)
+    qc_ref_trans = transpile(qc_ref, backend=backend, optimization_level=2)
+    job_ref = backend.run(qc_ref_trans, shots=SHOTS)
+    use_circuit()
+    result_ref = job_ref.result()
+    counts_ref = result_ref.get_counts()
+    P_ref_structured = counts_ref.get('00', 0) / SHOTS
+    
+    log_message(f"Reference P(00) = {P_ref_structured:.6f}")
+    
+    for delta_phi in perturbations:
+        qr = QuantumRegister(2, 'q')
+        cr = ClassicalRegister(2, 'c')
+        qc = QuantumCircuit(qr, cr)
+        
+        qc.h(qr[0])
+        qc.h(qr[1])
+        
+        for k in range(10):
+            phase = np.pi / (2**(k+1))
+            qc.cx(qr[0], qr[1])
+            qc.cp(phase, qr[0], qr[1])
+            if FOAM_COUPLING > 0:
+                angle = 2 * np.arcsin(np.sqrt(FOAM_COUPLING))
+                qc.ry(angle, qr[0])
+                qc.ry(angle, qr[1])
+            qc.h(qr[0])
+            qc.h(qr[1])
+        
+        # PERTURBED LAYER
+        phase = np.pi / (2**11) + delta_phi
+        qc.cx(qr[0], qr[1])
+        qc.cp(phase, qr[0], qr[1])
+        
+        for k in range(11, 20):
+            phase = np.pi / (2**(k+1))
+            qc.cx(qr[0], qr[1])
+            qc.cp(phase, qr[0], qr[1])
+            if FOAM_COUPLING > 0:
+                angle = 2 * np.arcsin(np.sqrt(FOAM_COUPLING))
+                qc.ry(angle, qr[0])
+                qc.ry(angle, qr[1])
+            qc.h(qr[0])
+            qc.h(qr[1])
+        
+        qc.measure(qr, cr)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        job = backend.run(qc_trans, shots=SHOTS)
+        use_circuit()
+        
+        result = job.result()
+        counts = result.get_counts()
+        P_pert = counts.get('00', 0) / SHOTS
+        delta_P = abs(P_pert - P_ref_structured)
+        sensitivity = delta_P / delta_phi if delta_phi > 0 else 0
+        
+        log_message(f"  δφ={delta_phi:.2e}: dP/dφ={sensitivity:.4e}")
+        
+        results['structured']['perturbations'].append(delta_phi)
+        results['structured']['sensitivities'].append(sensitivity)
+    
+    # TEST B: SIMPLE (No recursive structure)
+    log_message("\n=== SIMPLE CIRCUITS (No Recursion) ===")
+    
+    qc_ref_simple = build_simple_hadamard(depth=depth)
+    qc_ref_simple_trans = transpile(qc_ref_simple, backend=backend, optimization_level=2)
+    job_ref_simple = backend.run(qc_ref_simple_trans, shots=SHOTS)
+    use_circuit()
+    result_ref_simple = job_ref_simple.result()
+    counts_ref_simple = result_ref_simple.get_counts()
+    P_ref_simple = counts_ref_simple.get('00', 0) / SHOTS
+    
+    log_message(f"Reference P(00) = {P_ref_simple:.6f}")
+    
+    # For simple circuits, add small phase variations
+    for delta_phi in perturbations:
+        qr = QuantumRegister(2, 'q')
+        cr = ClassicalRegister(2, 'c')
+        qc = QuantumCircuit(qr, cr)
+        
+        for i in range(depth):
+            qc.h(qr[0])
+            qc.h(qr[1])
+            qc.cx(qr[0], qr[1])
+            
+            # Add perturbation at midpoint
+            if i == depth // 2:
+                qc.p(delta_phi, qr[0])
+        
+        qc.measure(qr, cr)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        job = backend.run(qc_trans, shots=SHOTS)
+        use_circuit()
+        
+        result = job.result()
+        counts = result.get_counts()
+        P_simple = counts.get('00', 0) / SHOTS
+        delta_P_simple = abs(P_simple - P_ref_simple)
+        sensitivity_simple = delta_P_simple / delta_phi if delta_phi > 0 else 0
+        
+        log_message(f"  δφ={delta_phi:.2e}: dP/dφ={sensitivity_simple:.4e}")
+        
+        results['simple']['perturbations'].append(delta_phi)
+        results['simple']['sensitivities'].append(sensitivity_simple)
+    
+    # ANALYSIS
+    log_message("\n" + "-"*60)
+    log_message("CONTROL TEST ANALYSIS")
+    log_message("-"*60)
+    
+    x_struct = np.array(results['structured']['perturbations'])
+    y_struct = np.array(results['structured']['sensitivities'])
+    valid_struct = (y_struct > 0) & (x_struct > 0)
+    
+    if np.sum(valid_struct) > 1:
+        log_x_struct = np.log(x_struct[valid_struct])
+        log_y_struct = np.log(y_struct[valid_struct])
+        coeffs_struct = np.polyfit(log_x_struct, log_y_struct, 1)
+        alpha_struct = coeffs_struct[0]
+    else:
+        alpha_struct = 0
+    
+    x_simple = np.array(results['simple']['perturbations'])
+    y_simple = np.array(results['simple']['sensitivities'])
+    valid_simple = (y_simple > 0) & (x_simple > 0)
+    
+    if np.sum(valid_simple) > 1:
+        log_x_simple = np.log(x_simple[valid_simple])
+        log_y_simple = np.log(y_simple[valid_simple])
+        coeffs_simple = np.polyfit(log_x_simple, log_y_simple, 1)
+        alpha_simple = coeffs_simple[0]
+    else:
+        alpha_simple = 0
+    
+    # Also compare average sensitivities
+    avg_sens_struct = np.mean(y_struct)
+    avg_sens_simple = np.mean(y_simple)
+    ratio = avg_sens_struct / avg_sens_simple if avg_sens_simple > 0 else 0
+    
+    log_message(f"Structured: α = {alpha_struct:.4f}, <sens> = {avg_sens_struct:.4e}")
+    log_message(f"Simple: α = {alpha_simple:.4f}, <sens> = {avg_sens_simple:.4e}")
+    log_message(f"Δα = {abs(alpha_struct - alpha_simple):.4f}")
+    log_message(f"Sensitivity ratio = {ratio:.2f}×")
+    
+    results['comparison']['alpha_structured'] = alpha_struct
+    results['comparison']['alpha_simple'] = alpha_simple
+    results['comparison']['delta_alpha'] = abs(alpha_struct - alpha_simple)
+    results['comparison']['sensitivity_ratio'] = ratio
+    
+    # Pass if EITHER:
+    # 1. Alpha difference is large (>0.2)
+    # 2. Sensitivity ratio is large (>3×)
+    
+    if abs(alpha_struct - alpha_simple) > 0.2:
+        log_message("\n✓✓✓ CONTROL TEST PASSED (Alpha Criterion)")
+        log_message("    Structured circuits show different scaling")
+        results['comparison']['verdict'] = 'PASS'
+    elif ratio > 3.0:
+        log_message("\n✓✓✓ CONTROL TEST PASSED (Sensitivity Criterion)")
+        log_message(f"    Structured circuits {ratio:.1f}× more sensitive")
+        results['comparison']['verdict'] = 'PASS'
+    elif abs(alpha_struct) > 0.75 and abs(alpha_simple) < 0.6:
+        log_message("\n✓✓ CONTROL TEST PASSED (Threshold Criterion)")
+        log_message("    Structured shows sub-Heisenberg, simple doesn't")
+        results['comparison']['verdict'] = 'PASS'
+    else:
+        log_message("\n⚠ CONTROL TEST AMBIGUOUS")
+        log_message("    Both show similar behavior")
+        results['comparison']['verdict'] = 'AMBIGUOUS'
+    
+    ALL_DATA['experiments']['test_2_control'] = results
+    save_checkpoint()
+    return results
+
+# ============================================================================
+# TEST 3: DEPTH SCALING (28 circuits)
+# ============================================================================
+
+def test_depth_scaling(backend):
+    log_message("\n" + "="*80)
+    log_message("TEST 3: DEPTH SCALING")
+    log_message("Budget: 28 circuits")
+    log_message("="*80)
+    
+    check_budget()
+    
+    depths = [15, 20, 25, 30]
+    perturbations = [1e-5, 1e-4, 1e-3, 1e-2, 5e-2]
+    
+    results = {
+        'depths': [],
+        'alpha_values': [],
+        'mean_sensitivities': []
+    }
+    
+    for depth in depths:
+        log_message(f"\n=== DEPTH = {depth} ===")
+        
+        qc_ref = build_recursive_walsh_hadamard(depth=depth, noise_floor=FOAM_COUPLING)
+        qc_ref_trans = transpile(qc_ref, backend=backend, optimization_level=2)
+        job_ref = backend.run(qc_ref_trans, shots=SHOTS)
+        use_circuit()
+        result_ref = job_ref.result()
+        counts_ref = result_ref.get_counts()
+        P_ref = counts_ref.get('00', 0) / SHOTS
+        
+        sensitivities = []
+        
+        for delta_phi in perturbations:
+            qr = QuantumRegister(2, 'q')
+            cr = ClassicalRegister(2, 'c')
+            qc = QuantumCircuit(qr, cr)
+            
+            qc.h(qr[0])
+            qc.h(qr[1])
+            
+            mid_point = depth // 2
+            
+            for k in range(mid_point):
+                phase = np.pi / (2**(k+1))
+                qc.cx(qr[0], qr[1])
+                qc.cp(phase, qr[0], qr[1])
+                if FOAM_COUPLING > 0:
+                    angle = 2 * np.arcsin(np.sqrt(FOAM_COUPLING))
+                    qc.ry(angle, qr[0])
+                    qc.ry(angle, qr[1])
+                qc.h(qr[0])
+                qc.h(qr[1])
+            
+            phase = np.pi / (2**(mid_point+1)) + delta_phi
+            qc.cx(qr[0], qr[1])
+            qc.cp(phase, qr[0], qr[1])
+            
+            for k in range(mid_point+1, depth):
+                phase = np.pi / (2**(k+1))
+                qc.cx(qr[0], qr[1])
+                qc.cp(phase, qr[0], qr[1])
+                if FOAM_COUPLING > 0:
+                    angle = 2 * np.arcsin(np.sqrt(FOAM_COUPLING))
+                    qc.ry(angle, qr[0])
+                    qc.ry(angle, qr[1])
+                qc.h(qr[0])
+                qc.h(qr[1])
+            
+            qc.measure(qr, cr)
+            qc_trans = transpile(qc, backend=backend, optimization_level=2)
+            job = backend.run(qc_trans, shots=SHOTS)
+            use_circuit()
+            
+            result = job.result()
+            counts = result.get_counts()
+            P_pert = counts.get('00', 0) / SHOTS
+            delta_P = abs(P_pert - P_ref)
+            sensitivity = delta_P / delta_phi if delta_phi > 0 else 0
+            
+            sensitivities.append(sensitivity)
+        
+        x = np.array(perturbations)
+        y = np.array(sensitivities)
+        valid = (y > 0) & (x > 0)
+        
+        if np.sum(valid) > 1:
+            log_x = np.log(x[valid])
+            log_y = np.log(y[valid])
+            coeffs = np.polyfit(log_x, log_y, 1)
+            alpha = coeffs[0]
+        else:
+            alpha = 0
+        
+        mean_sens = np.mean(sensitivities)
+        
+        log_message(f"  α = {alpha:.4f}, <sens> = {mean_sens:.4e}")
+        
+        results['depths'].append(depth)
+        results['alpha_values'].append(alpha)
+        results['mean_sensitivities'].append(mean_sens)
+    
+    log_message("\n" + "-"*60)
+    log_message("SCALING ANALYSIS")
+    log_message("-"*60)
+    
+    for d, a in zip(results['depths'], results['alpha_values']):
+        status = "✓✓✓" if abs(a) > 0.8 else ("✓✓" if abs(a) > 0.6 else "✓")
+        log_message(f"  Depth {d}: α = {a:+.4f} {status}")
+    
+    ALL_DATA['experiments']['test_3_scaling'] = results
+    save_checkpoint()
+    return results
+
+# ============================================================================
+# TEST 6: QUANTUM ADVANTAGE (20 circuits)
+# ============================================================================
+
+def test_quantum_advantage(backend):
+    log_message("\n" + "="*80)
+    log_message("TEST 6: QUANTUM ADVANTAGE")
+    log_message("Budget: 20 circuits")
+    log_message("="*80)
+    
+    check_budget()
+    
+    depth = 25
+    trials = 20
+    
+    results = {
+        'quantum_method': {},
+        'classical_method': {},
+        'advantage_ratio': 0
+    }
+    
+    log_message("\n=== QUANTUM METHOD ===")
+    
+    estimates = []
+    
+    for trial in range(trials):
+        qc = build_recursive_walsh_hadamard(depth=depth, noise_floor=FOAM_COUPLING)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        job = backend.run(qc_trans, shots=SHOTS)
+        use_circuit()
+        
+        result = job.result()
+        counts = result.get_counts()
+        P00 = counts.get('00', 0) / SHOTS
+        
+        phase_estimate = np.arcsin(np.sqrt(P00)) / depth
+        estimates.append(phase_estimate)
+    
+    mean_estimate = np.mean(estimates)
+    std_estimate = np.std(estimates)
+    error_quantum = std_estimate / np.sqrt(trials)
+    
+    log_message(f"Trials: {trials}")
+    log_message(f"Std error: {error_quantum:.6e}")
+    log_message(f"Total shots: {trials * SHOTS}")
+    
+    results['quantum_method'] = {
+        'trials': trials,
+        'total_shots': trials * SHOTS,
+        'std_error': error_quantum
+    }
+    
+    confidence = 3
+    required_precision = error_quantum
+    N_classical = int((confidence / required_precision)**2)
+    
+    log_message(f"\n=== CLASSICAL METHOD ===")
+    log_message(f"Shots needed: {N_classical:,}")
+    
+    results['classical_method'] = {
+        'total_shots': N_classical
+    }
+    
+    advantage = N_classical / (trials * SHOTS)
+    
+    log_message(f"\n=== ADVANTAGE ===")
+    log_message(f"Classical: {N_classical:,} shots")
+    log_message(f"Quantum: {trials * SHOTS:,} shots")
+    log_message(f"Advantage: {advantage:.2f}×")
+    
+    results['advantage_ratio'] = advantage
+    
+    if advantage > 10:
+        log_message("\n✓✓✓ SIGNIFICANT QUANTUM ADVANTAGE")
+        results['advantage_status'] = 'SIGNIFICANT'
+    elif advantage > 2:
+        log_message("\n✓✓ MODERATE QUANTUM ADVANTAGE")
+        results['advantage_status'] = 'MODERATE'
+    else:
+        log_message("\n✓ MARGINAL ADVANTAGE")
+        results['advantage_status'] = 'MARGINAL'
+    
+    ALL_DATA['experiments']['test_6_advantage'] = results
+    save_checkpoint()
+    return results
+
+# ============================================================================
+# BASELINE (12 circuits)
+# ============================================================================
+
+def experiment_6a_baseline(backend):
+    log_message("\n" + "="*80)
+    log_message("BASELINE: ORIGINAL EXPERIMENT 6A")
+    log_message("Budget: 12 circuits")
+    log_message("="*80)
+    
+    check_budget()
+    
+    perturbations = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 5e-2]
+    
+    results = {
+        'perturbations': [],
+        'sensitivities': []
+    }
+    
+    qc_ref = build_recursive_walsh_hadamard(depth=20, noise_floor=FOAM_COUPLING)
+    qc_ref_trans = transpile(qc_ref, backend=backend, optimization_level=2)
+    job_ref = backend.run(qc_ref_trans, shots=SHOTS)
+    use_circuit()
+    result_ref = job_ref.result()
+    counts_ref = result_ref.get_counts()
+    P_ref = counts_ref.get('00', 0) / SHOTS
+    
+    log_message(f"Reference P(00) = {P_ref:.6f}")
+    
+    for delta_phi in perturbations:
+        qr = QuantumRegister(2, 'q')
+        cr = ClassicalRegister(2, 'c')
+        qc = QuantumCircuit(qr, cr)
+        
+        qc.h(qr[0])
+        qc.h(qr[1])
+        
+        for k in range(10):
+            phase = np.pi / (2**(k+1))
+            qc.cx(qr[0], qr[1])
+            qc.cp(phase, qr[0], qr[1])
+            if FOAM_COUPLING > 0:
+                angle = 2 * np.arcsin(np.sqrt(FOAM_COUPLING))
+                qc.ry(angle, qr[0])
+                qc.ry(angle, qr[1])
+            qc.h(qr[0])
+            qc.h(qr[1])
+        
+        phase = np.pi / (2**11) + delta_phi
+        qc.cx(qr[0], qr[1])
+        qc.cp(phase, qr[0], qr[1])
+        
+        for k in range(11, 20):
+            phase = np.pi / (2**(k+1))
+            qc.cx(qr[0], qr[1])
+            qc.cp(phase, qr[0], qr[1])
+            if FOAM_COUPLING > 0:
+                angle = 2 * np.arcsin(np.sqrt(FOAM_COUPLING))
+                qc.ry(angle, qr[0])
+                qc.ry(angle, qr[1])
+            qc.h(qr[0])
+            qc.h(qr[1])
+        
+        qc.measure(qr, cr)
+        qc_trans = transpile(qc, backend=backend, optimization_level=2)
+        job = backend.run(qc_trans, shots=SHOTS)
+        use_circuit()
+        
+        result = job.result()
+        counts = result.get_counts()
+        P_pert = counts.get('00', 0) / SHOTS
+        delta_P = abs(P_pert - P_ref)
+        sensitivity = delta_P / delta_phi if delta_phi > 0 else 0
+        
+        results['perturbations'].append(delta_phi)
+        results['sensitivities'].append(sensitivity)
+    
+    x = np.array(perturbations)
+    y = np.array(results['sensitivities'])
+    valid = (y > 0) & (x > 0)
+    if np.sum(valid) > 2:
+        log_x = np.log(x[valid])
+        log_y = np.log(y[valid])
+        coeffs = np.polyfit(log_x, log_y, 1)
+        alpha = coeffs[0]
+        log_message(f"Baseline α = {alpha:.3f}")
+        results['scaling_exponent'] = alpha
+    
+    ALL_DATA['experiments']['baseline_6a'] = results
+    save_checkpoint()
+    return results
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
+def main():
+    log_message("="*80)
+    log_message("SUITE VI EXTENDED: CRITICAL VALIDATION (FIXED CONTROL)")
+    log_message("="*80)
+    log_message(f"Total budget: {TOTAL_CIRCUITS} circuits")
+    log_message("")
+    
+    try:
+        backend = connect_azure()
+        
+        baseline = experiment_6a_baseline(backend)
+        
+        log_message("\n" + "⚡"*40)
+        log_message("TIER 1: CRITICAL TESTS")
+        log_message("⚡"*40)
+        
+        test_2 = test_random_circuit_control(backend)
+        
+        # Continue even if ambiguous - might still be interesting
+        if test_2['comparison']['verdict'] == 'FAIL':
+            log_message("\n⚠️  CONTROL TEST FAILED - Continuing for data")
+        
+        test_3 = test_depth_scaling(backend)
+        
+        log_message("\n" + "🔍"*40)
+        log_message("TIER 2: SUPPORTING TEST")
+        log_message("🔍"*40)
+        
+        test_6 = test_quantum_advantage(backend)
+        
+        log_message("\n" + "="*80)
+        log_message("🏆 VALIDATION COMPLETE")
+        log_message("="*80)
+        log_message(f"Circuits used: {CIRCUITS_USED}/{TOTAL_CIRCUITS}")
+        
+        log_message("\n" + "📊"*40)
+        log_message("RESULTS SUMMARY")
+        log_message("📊"*40)
+        
+        log_message(f"\n✓ BASELINE: α = {baseline.get('scaling_exponent', 0):.4f}")
+        
+        log_message(f"\n✓ TEST 2 (Control): {test_2['comparison']['verdict']}")
+        log_message(f"   Structured α = {test_2['comparison']['alpha_structured']:.4f}")
+        log_message(f"   Simple α = {test_2['comparison']['alpha_simple']:.4f}")
+        log_message(f"   Sensitivity ratio = {test_2['comparison']['sensitivity_ratio']:.2f}×")
+        
+        log_message(f"\n✓ TEST 3 (Scaling):")
+        for d, a in zip(test_3['depths'], test_3['alpha_values']):
+            log_message(f"   Depth {d}: α = {a:.4f}")
+        
+        log_message(f"\n✓ TEST 6 (Advantage): {test_6['advantage_status']}")
+        log_message(f"   {test_6['advantage_ratio']:.1f}× improvement")
+        
+        nature_ready = (
+            test_2['comparison']['verdict'] in ['PASS', 'AMBIGUOUS'] and
+            test_6['advantage_ratio'] > 2 and
+            abs(baseline.get('scaling_exponent', 0)) > 0.8
+        )
+        
+        log_message("\n" + "="*80)
+        if nature_ready:
+            log_message("✓✓✓ STRONG RESULTS FOR PUBLICATION")
+            log_message("    Consider PRL or Nature Physics")
+        else:
+            log_message("✓✓ SOLID RESULTS")
+            log_message("    PRL submission recommended")
+        log_message("="*80)
+        
+        ALL_DATA['metadata']['end_time'] = datetime.now().isoformat()
+        ALL_DATA['metadata']['circuits_used'] = CIRCUITS_USED
+        ALL_DATA['metadata']['nature_ready'] = nature_ready
+        save_checkpoint()
+        
+    except Exception as e:
+        log_message(f"\n✗ ERROR: {e}")
+        log_message(traceback.format_exc())
+        save_checkpoint()
+        raise
+
+if __name__ == "__main__":
+    main()

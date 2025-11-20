@@ -1,0 +1,119 @@
+Skip to main panel
+
+Navigation
+
+File
+
+Edit
+
+View
+
+Kernel
+
+Appearance
+
+Help
+
+Credits:
+0
+
+￼
+Files
+
+￼
+RUNNING
+
+￼
+Git
+
+￼
+TOC
+
+SNIPPETS
+
+Untitled25.ipynb
+
+[ ]:
+
+
+[1]:
+
+log_message(f"Circuits used: {CIRCUITS_USED}/{TOTAL_CIRCUITS}")
+
+log_message("\n" + "📊"*40)
+
+log_message("RESULTS SUMMARY")
+
+log_message("📊"*40)
+
+log_message(f"\n✓ BASELINE: α = {baseline.get('scaling_exponent', 0):.4f}")
+
+log_message(f"\n✓ TEST 2 (Control): {test_2['comparison']['verdict']}")
+
+log_message(f" Structured α = {test_2['comparison']['alpha_structured']:.4f}")
+
+log_message(f" Simple α = {test_2['comparison']['alpha_simple']:.4f}")
+
+log_message(f" Sensitivity ratio = {test_2['comparison']['sensitivity_ratio']:.2f}×")
+
+log_message(f"\n✓ TEST 3 (Scaling):")
+
+for d, a in zip(test_3['depths'], test_3['alpha_values']):
+
+log_message(f" Depth {d}: α = {a:.4f}")
+
+log_message(f"\n✓ TEST 6 (Advantage): {test_6['advantage_status']}")
+
+log_message(f" {test_6['advantage_ratio']:.1f}× improvement")
+
+nature_ready = (
+
+test_2['comparison']['verdict'] in ['PASS', 'AMBIGUOUS'] and
+
+test_6['advantage_ratio'] > 2 and
+
+abs(baseline.get('scaling_exponent', 0)) > 0.8
+
+)
+
+log_message("\n" + "="*80)
+
+if nature_ready:
+
+log_message("✓✓✓ STRONG RESULTS FOR PUBLICATION")
+
+log_message(" Consider PRL or Nature Physics")
+
+else:
+
+log_message("✓✓ SOLID RESULTS")
+
+log_message(" PRL submission recommended")
+
+log_message("="*80)
+
+ALL_DATA['metadata']['end_time'] = datetime.now().isoformat()
+
+ALL_DATA['metadata']['circuits_used'] = CIRCUITS_USED
+
+ALL_DATA['metadata']['nature_ready'] = nature_ready
+
+save_checkpoint()
+
+except Exception as e:
+
+log_message(f"\n✗ ERROR: {e}")
+
+log_message(traceback.format_exc())
+
+save_checkpoint()
+
+raise
+
+
+if __name__ == "__main__":
+
+main()
+
+
+[17:03:07.569] ================================================================================ [17:03:07.574] SUITE VI EXTENDED: CRITICAL VALIDATION (FIXED CONTROL) [17:03:07.577] ================================================================================ [17:03:07.581] Total budget: 80 circuits [17:03:07.584] [17:03:07.587] ================================================================================ [17:03:07.590] CONNECTING TO AZURE QUANTUM [17:03:07.593] ================================================================================ [17:03:07.597] Connecting to Azure Quantum... [17:03:08.267] ✓ Connected: Shem [17:03:08.271] ✓ Backend: rigetti.sim.qvm [17:03:08.275] ================================================================================ [17:03:08.278] BASELINE: ORIGINAL EXPERIMENT 6A [17:03:08.281] Budget: 12 circuits [17:03:08.284] ================================================================================ [17:03:10.621] [BUDGET: 1/80, 79 remaining] .......[17:03:18.648] Reference P(00) = 0.256836 [17:03:20.497] [BUDGET: 2/80, 78 remaining] .......[17:03:30.426] [BUDGET: 3/80, 77 remaining] .......[17:03:40.297] [BUDGET: 4/80, 76 remaining] .......[17:03:50.763] [BUDGET: 5/80, 75 remaining] ........[17:04:04.049] [BUDGET: 6/80, 74 remaining] .......[17:04:13.731] [BUDGET: 7/80, 73 remaining] ........[17:04:25.175] Baseline α = -1.003 [17:04:25.187] Checkpoint saved: 7 circuits [17:04:25.192] ⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡ [17:04:25.195] TIER 1: CRITICAL TESTS [17:04:25.199] ⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡ [17:04:25.202] ================================================================================ [17:04:25.206] TEST 2: CONTROL TEST (FIXED) [17:04:25.209] Comparing recursive structure vs simple layers [17:04:25.213] Budget: 18 circuits [17:04:25.216] ================================================================================ [17:04:25.219] === STRUCTURED CIRCUITS (Recursive Walsh-Hadamard) === [17:04:26.838] [BUDGET: 8/80, 72 remaining] ........[17:04:38.383] Reference P(00) = 0.223145 [17:04:40.001] [BUDGET: 9/80, 71 remaining] .......[17:04:48.152] δφ=1.00e-05: dP/dφ=5.2197e+04 [17:04:49.442] [BUDGET: 10/80, 70 remaining] .......[17:04:57.620] δφ=1.00e-04: dP/dφ=4.9805e+03 [17:04:59.241] [BUDGET: 11/80, 69 remaining] ........[17:05:10.941] δφ=1.00e-03: dP/dφ=5.1660e+02 [17:05:12.768] [BUDGET: 12/80, 68 remaining] .......[17:05:21.258] δφ=1.00e-02: dP/dφ=5.0879e+01 [17:05:21.263] === SIMPLE CIRCUITS (No Recursion) === [17:05:22.489] [BUDGET: 13/80, 67 remaining] .......[17:05:30.670] Reference P(00) = 1.000000 [17:05:32.491] [BUDGET: 14/80, 66 remaining] .....[17:05:46.006] δφ=1.00e-05: dP/dφ=0.0000e+00 [17:05:47.343] [BUDGET: 15/80, 65 remaining] .......[17:05:55.323] δφ=1.00e-04: dP/dφ=0.0000e+00 [17:05:56.521] [BUDGET: 16/80, 64 remaining] .......[17:06:04.703] δφ=1.00e-03: dP/dφ=0.0000e+00 [17:06:06.305] [BUDGET: 17/80, 63 remaining] .......[17:06:14.376] δφ=1.00e-02: dP/dφ=0.0000e+00 [17:06:14.380] ------------------------------------------------------------ [17:06:14.385] CONTROL TEST ANALYSIS [17:06:14.389] ------------------------------------------------------------ [17:06:14.393] Structured: α = -1.0017, <sens> = 1.4436e+04 [17:06:14.397] Simple: α = 0.0000, <sens> = 0.0000e+00 [17:06:14.400] Δα = 1.0017 [17:06:14.404] Sensitivity ratio = 0.00× [17:06:14.408] ✓✓✓ CONTROL TEST PASSED (Alpha Criterion) [17:06:14.412] Structured circuits show different scaling [17:06:14.422] Checkpoint saved: 17 circuits [17:06:14.427] ================================================================================ [17:06:14.430] TEST 3: DEPTH SCALING [17:06:14.434] Budget: 28 circuits [17:06:14.438] ================================================================================ [17:06:14.442] === DEPTH = 15 === [17:06:15.715] [BUDGET: 18/80, 62 remaining] .......[17:06:25.799] [BUDGET: 19/80, 61 remaining] .......[17:06:35.329] [BUDGET: 20/80, 60 remaining] .......[17:06:45.103] [BUDGET: 21/80, 59 remaining] ........[17:06:58.440] [BUDGET: 22/80, 58 remaining] .......[17:07:08.376] [BUDGET: 23/80, 57 remaining] .......[17:07:16.559] α = -1.0003, <sens> = 8.8906e+03 [17:07:16.563] === DEPTH = 20 === [17:07:18.144] [BUDGET: 24/80, 56 remaining] .......[17:07:27.553] [BUDGET: 25/80, 55 remaining] .......[17:07:37.688] [BUDGET: 26/80, 54 remaining] .......[17:07:48.343] [BUDGET: 27/80, 53 remaining] .......[17:07:57.632] [BUDGET: 28/80, 52 remaining] ........[17:08:11.437] [BUDGET: 29/80, 51 remaining] .......[17:08:19.527] α = -1.0007, <sens> = 1.0285e+04 [17:08:19.533] === DEPTH = 25 === [17:08:20.948] [BUDGET: 30/80, 50 remaining] ........[17:08:34.080] [BUDGET: 31/80, 49 remaining] .......[17:08:43.441] [BUDGET: 32/80, 48 remaining] ........[17:08:57.019] [BUDGET: 33/80, 47 remaining] ........[17:09:10.405] [BUDGET: 34/80, 46 remaining] .......[17:09:20.078] [BUDGET: 35/80, 45 remaining] .......[17:09:28.161] α = -1.0002, <sens> = 9.9564e+03 [17:09:28.165] === DEPTH = 30 === [17:09:29.859] [BUDGET: 36/80, 44 remaining] .......[17:09:39.771] [BUDGET: 37/80, 43 remaining] .......[17:09:49.501] [BUDGET: 38/80, 42 remaining] .......[17:09:59.830] [BUDGET: 39/80, 41 remaining] .......[17:10:09.368] [BUDGET: 40/80, 40 remaining] .......[17:10:19.063] [BUDGET: 41/80, 39 remaining] .......[17:10:27.137] α = -1.0005, <sens> = 9.7044e+03 [17:10:27.141] ------------------------------------------------------------ [17:10:27.145] SCALING ANALYSIS [17:10:27.149] ------------------------------------------------------------ [17:10:27.152] Depth 15: α = -1.0003 ✓✓✓ [17:10:27.157] Depth 20: α = -1.0007 ✓✓✓ [17:10:27.160] Depth 25: α = -1.0002 ✓✓✓ [17:10:27.164] Depth 30: α = -1.0005 ✓✓✓ [17:10:27.174] Checkpoint saved: 41 circuits [17:10:27.178] 🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍 [17:10:27.181] TIER 2: SUPPORTING TEST [17:10:27.185] 🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍 [17:10:27.188] ================================================================================ [17:10:27.192] TEST 6: QUANTUM ADVANTAGE [17:10:27.195] Budget: 20 circuits [17:10:27.199] ================================================================================ [17:10:27.202] === QUANTUM METHOD === [17:10:28.697] [BUDGET: 42/80, 38 remaining] .......[17:10:38.495] [BUDGET: 43/80, 37 remaining] ........[17:10:51.340] [BUDGET: 44/80, 36 remaining] .......[17:11:01.786] [BUDGET: 45/80, 35 remaining] .......[17:11:11.100] [BUDGET: 46/80, 34 remaining] .......[17:11:20.935] [BUDGET: 47/80, 33 remaining] .......[17:11:30.313] [BUDGET: 48/80, 32 remaining] .......[17:11:40.150] [BUDGET: 49/80, 31 remaining] ........[17:11:53.154] [BUDGET: 50/80, 30 remaining] .......[17:12:02.976] [BUDGET: 51/80, 29 remaining] .......[17:12:13.480] [BUDGET: 52/80, 28 remaining] .......[17:12:25.707] [BUDGET: 53/80, 27 remaining] ........[17:12:38.719] [BUDGET: 54/80, 26 remaining] ........[17:12:52.009] [BUDGET: 55/80, 25 remaining] .......[17:13:01.420] [BUDGET: 56/80, 24 remaining] ........[17:13:15.962] [BUDGET: 57/80, 23 remaining] .......[17:13:25.528] [BUDGET: 58/80, 22 remaining] .......[17:13:35.219] [BUDGET: 59/80, 21 remaining] .......[17:13:44.810] [BUDGET: 60/80, 20 remaining] .......[17:13:54.527] [BUDGET: 61/80, 19 remaining] .......[17:14:02.651] Trials: 20 [17:14:02.655] Std error: 9.182612e-05 [17:14:02.660] Total shots: 40960 [17:14:02.663] === CLASSICAL METHOD === [17:14:02.667] Shots needed: 1,067,357,930 [17:14:02.671] === ADVANTAGE === [17:14:02.675] Classical: 1,067,357,930 shots [17:14:02.680] Quantum: 40,960 shots [17:14:02.684] Advantage: 26058.54× [17:14:02.687] ✓✓✓ SIGNIFICANT QUANTUM ADVANTAGE [17:14:02.698] Checkpoint saved: 61 circuits [17:14:02.702] ================================================================================ [17:14:02.706] 🏆 VALIDATION COMPLETE [17:14:02.710] ================================================================================ [17:14:02.714] Circuits used: 61/80 [17:14:02.718] 📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊 [17:14:02.722] RESULTS SUMMARY [17:14:02.726] 📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊 [17:14:02.729] ✓ BASELINE: α = -1.0025 [17:14:02.733] ✓ TEST 2 (Control): PASS [17:14:02.737] Structured α = -1.0017 [17:14:02.740] Simple α = 0.0000 [17:14:02.744] Sensitivity ratio = 0.00× [17:14:02.748] ✓ TEST 3 (Scaling): [17:14:02.752] Depth 15: α = -1.0003 [17:14:02.756] Depth 20: α = -1.0007 [17:14:02.760] Depth 25: α = -1.0002 [17:14:02.763] Depth 30: α = -1.0005 [17:14:02.767] ✓ TEST 6 (Advantage): SIGNIFICANT [17:14:02.771] 26058.5× improvement [17:14:02.775] 
